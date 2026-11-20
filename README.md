@@ -44,7 +44,7 @@
 ### Option B: build from source
 Requires Xcode or the Xcode Command Line Tools (Swift 5.10+). Full Xcode also compiles the accent-color asset; with only the Command Line Tools the app uses your system accent color.
 ```bash
-gh repo clone dvd90/prompt-forge   # private repo
+git clone https://github.com/dvd90/prompt-forge.git
 cd prompt-forge
 ./install.sh                        # builds, installs to /Applications, launches
 ```
