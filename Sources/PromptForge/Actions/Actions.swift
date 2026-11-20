@@ -17,6 +17,19 @@ struct AIAction: Codable, Identifiable, Hashable {
 }
 
 extension AIAction {
+    // Custom actions are persisted; a new stored property must get a line here too.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.decode(.id, or: "custom-\(UUID().uuidString)")
+        name = c.decode(.name, or: "Untitled Action")
+        icon = c.decode(.icon, or: "sparkles")
+        instruction = c.decode(.instruction, or: "")
+        kind = c.decode(.kind, or: .transform)
+        builtIn = c.decode(.builtIn, or: false)
+    }
+}
+
+extension AIAction {
     static let improvePrompt = AIAction(
         id: "improve-prompt", name: "Improve Prompt", icon: "wand.and.stars",
         instruction: "Engineer the most effective version of this prompt.", kind: .promptEngineer, builtIn: true)

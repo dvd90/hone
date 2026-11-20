@@ -79,6 +79,21 @@ struct ProviderSettings: Codable, Equatable {
     }
 }
 
+extension ProviderSettings {
+    // A new stored property must get a line here too, or it will never be read back.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = ProviderSettings()
+        kind = c.decode(.kind, or: d.kind)
+        claudeCodeModel = c.decode(.claudeCodeModel, or: d.claudeCodeModel)
+        codexModel = c.decode(.codexModel, or: d.codexModel)
+        geminiModel = c.decode(.geminiModel, or: d.geminiModel)
+        anthropicModel = c.decode(.anthropicModel, or: d.anthropicModel)
+        openAIBaseURL = c.decode(.openAIBaseURL, or: d.openAIBaseURL)
+        openAIModel = c.decode(.openAIModel, or: d.openAIModel)
+    }
+}
+
 enum ProviderFactory {
     static func make(_ s: ProviderSettings) throws -> LLMProvider {
         switch s.kind {

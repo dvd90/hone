@@ -201,6 +201,30 @@ struct HistoryItem: Codable, Identifiable, Equatable {
     }
 }
 
+extension HistoryItem {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = c.decode(.id, or: UUID())
+        date = c.decode(.date, or: Date())
+        actionID = c.decode(.actionID, or: "")
+        actionName = c.decode(.actionName, or: "")
+        draft = c.decode(.draft, or: "")
+        goal = c.decode(.goal, or: "")
+        target = c.decode(.target, or: .claude)
+        provider = c.decode(.provider, or: "")
+        raw = c.decode(.raw, or: "")
+        conversation = c.decode(.conversation, or: [])
+    }
+}
+
+extension KeyedDecodingContainer {
+    /// A missing or unreadable value falls back instead of failing the whole decode, so adding a field
+    /// or renaming an enum case never wipes saved data. Every persisted type's `init(from:)` uses this.
+    func decode<T: Decodable>(_ key: Key, or fallback: @autoclosure () -> T) -> T {
+        (try? decodeIfPresent(T.self, forKey: key)) ?? fallback()
+    }
+}
+
 enum HistoryStore {
     static var url: URL {
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -209,11 +233,18 @@ enum HistoryStore {
         return dir.appendingPathComponent("history-v2.json")
     }
 
-    static func load() -> [HistoryItem] {
-        guard let data = try? Data(contentsOf: url) else { return [] }
+    static func load(from file: URL = HistoryStore.url) -> [HistoryItem] {
+        guard let data = try? Data(contentsOf: file) else { return [] }
         let dec = JSONDecoder()
         dec.dateDecodingStrategy = .iso8601
-        return (try? dec.decode([HistoryItem].self, from: data)) ?? []
+        do {
+            return try dec.decode([HistoryItem].self, from: data)
+        } catch {
+            // Move an unreadable file aside so the next save can't overwrite the user's history.
+            let aside = file.deletingPathExtension().appendingPathExtension("unreadable-\(Int(Date().timeIntervalSince1970)).json")
+            try? FileManager.default.moveItem(at: file, to: aside)
+            return []
+        }
     }
 
     static func save(_ items: [HistoryItem]) {
