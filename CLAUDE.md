@@ -28,6 +28,7 @@ Releases: `scripts/make_dmg.sh` signs, notarizes (keychain profile `hone-notary`
 
 ## Working style
 - Smallest change that works; match the existing style.
+- Design: follow `DESIGN.md` (tokens and rules) and `PRODUCT.md` (users and principles).
 - UI: native controls first (default and `.borderedProminent` buttons, one prominent action per area; no glass or card containers in content). Reuse `UI/Theme.swift`: `field()` for text wells, `motion(_:)` for animations (honors Reduce Motion), `Theme.muted` for secondary text (system `.secondary` is below WCAG AA). The accent color lives in `Assets.xcassets` (compiled by `build.sh`).
 - Work on a feature branch and commit with clear messages. Do not push, tag or release unless asked.
 - Report briefly: what changed, what you actually tested, what is untested.

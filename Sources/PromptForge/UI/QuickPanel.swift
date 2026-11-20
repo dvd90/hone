@@ -17,7 +17,6 @@ final class QuickPanelController: ObservableObject {
     @Published var raw = ""
     @Published var phase: Phase = .choosing
     @Published var action: AIAction?
-    @Published var scoreLine: String?
     @Published var canReplace = false
     @Published var copied = false
 
@@ -44,7 +43,7 @@ final class QuickPanelController: ObservableObject {
         task?.cancel()
         sourceText = text
         self.canReplace = canReplace && SelectionBridge.isTrusted
-        output = ""; raw = ""; scoreLine = nil; action = nil; phase = .choosing
+        output = ""; raw = ""; action = nil; phase = .choosing
         showPanel()
         if let id = actionID, let a = state?.allActions.first(where: { $0.id == id }) { run(a) }
     }
@@ -55,7 +54,7 @@ final class QuickPanelController: ObservableObject {
         guard let state else { return }
         let text = sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
         action = a
-        output = ""; raw = ""; scoreLine = nil
+        output = ""; raw = ""
         guard !text.isEmpty else { phase = .failed("No text. Select some text (or copy it) and try again."); return }
 
         let provider: LLMProvider
@@ -80,10 +79,6 @@ final class QuickPanelController: ObservableObject {
                 guard let self else { return }
                 let final = ActionEngine.displayText(action: a, raw: raw)
                 self.output = final
-                if a.kind == .promptEngineer {
-                    let r = ForgeResult.parse(raw)
-                    if let b = r.scoreBefore, let after = r.scoreAfter { self.scoreLine = "\(b) → \(after)" }
-                }
                 if final.isEmpty {
                     self.phase = .failed("The model returned nothing usable. Try again.")
                 } else {
@@ -101,7 +96,7 @@ final class QuickPanelController: ObservableObject {
     func back() {
         task?.cancel()
         phase = .choosing
-        output = ""; raw = ""; action = nil; scoreLine = nil
+        output = ""; raw = ""; action = nil
     }
 
     func copyOutput() {
@@ -182,8 +177,8 @@ struct QuickPanelView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             // Shares the title bar row with the close button instead of leaving an empty band above.
-            HStack(spacing: 6) {
-                Image(systemName: "wand.and.stars").foregroundStyle(.tint)
+            HStack(spacing: 7) {
+                Circle().fill(Theme.dot).frame(width: 8, height: 8)
                 Text("Hone").font(.headline)
                 Spacer()
                 Text(state.providerSettings.kind.shortLabel).font(.caption).foregroundStyle(Theme.muted)
@@ -197,7 +192,9 @@ struct QuickPanelView: View {
                 .foregroundStyle(Theme.muted)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(10)
-                .field()
+                .field(Theme.inputFill)
+
+            Divider().padding(.vertical, 2)
 
             switch c.phase {
             case .choosing:
@@ -209,6 +206,7 @@ struct QuickPanelView: View {
         .padding([.horizontal, .bottom], 14)
         .padding(.top, 4)
         .frame(width: 560)
+        .background(Theme.ground)
         .background(Button("") { c.close() }.keyboardShortcut(.cancelAction).opacity(0))
         .motion(c.phase)
     }
@@ -238,12 +236,15 @@ struct QuickPanelView: View {
     }
 
     private var resultView: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
                 if let a = c.action { Label(a.name, systemImage: a.icon).font(.subheadline.weight(.semibold)) }
-                if c.phase == .running { ProgressView().controlSize(.small) }
+                if c.phase == .running && c.action?.kind != .promptEngineer { ProgressView().controlSize(.small) }
                 Spacer()
-                if let s = c.scoreLine { Text("Score \(s)").font(.callout.monospacedDigit()).foregroundStyle(Theme.muted) }
+            }
+            if c.action?.kind == .promptEngineer {
+                let r = ForgeResult.parse(c.raw)
+                ScoreMeter(before: r.scoreBefore, after: r.scoreAfter, isRunning: c.phase == .running, compact: true)
             }
 
             if case let .failed(msg) = c.phase {
@@ -264,11 +265,17 @@ struct QuickPanelView: View {
                 .field()
             }
 
+            Divider().padding(.vertical, 2)
             HStack {
-                Button { c.back() } label: { Label("Actions", systemImage: "chevron.left") }
-                    .keyboardShortcut(.leftArrow, modifiers: .command)
-                Button("Open in App") { c.openInApp() }
-                    .disabled(c.phase != .done)
+                // Dial's footer: quiet text actions on the left, the real choices on the right.
+                HStack(spacing: 18) {
+                    Button { c.back() } label: { Label("Actions", systemImage: "chevron.left") }
+                        .keyboardShortcut(.leftArrow, modifiers: .command)
+                    Button("Open in App") { c.openInApp() }
+                        .disabled(c.phase != .done)
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(Theme.muted)
                 Spacer()
                 // One primary action: Replace when it's available, otherwise Copy.
                 if c.canReplace {

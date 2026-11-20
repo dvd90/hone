@@ -57,20 +57,31 @@ struct ProviderSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .textFieldStyle(.roundedBorder)   // visible fields: hints live in muted captions, not grey placeholders
+        .scrollContentBackground(.hidden)
+        .background(Theme.ground)
         .onChange(of: state.providerSettings.kind) { testResult = nil }
+    }
+
+    /// Field hints as muted captions: macOS placeholders render below WCAG AA contrast.
+    private func modelHint(_ text: String) -> some View {
+        Text(text).font(.caption).foregroundStyle(Theme.muted)
     }
 
     @ViewBuilder private var details: some View {
         switch state.providerSettings.kind {
         case .claudeCode:
             CLIStatusRow(name: "claude", loginHint: "Run `claude` in Terminal once and sign in with your Claude Pro/Max account.")
-            TextField("Model", text: $state.providerSettings.claudeCodeModel, prompt: Text("default · or sonnet, opus, haiku"))
+            TextField("Model", text: $state.providerSettings.claudeCodeModel, prompt: Text(""))
+            modelHint("Leave blank for the default, or enter sonnet, opus, haiku or a full model ID.")
         case .codex:
             CLIStatusRow(name: "codex", loginHint: "Run `codex login` in Terminal and sign in with ChatGPT. Note: Codex doesn't stream, so results appear all at once.")
-            TextField("Model", text: $state.providerSettings.codexModel, prompt: Text("default"))
+            TextField("Model", text: $state.providerSettings.codexModel, prompt: Text(""))
+            modelHint("Leave blank for Codex's default model.")
         case .geminiCLI:
             CLIStatusRow(name: "gemini", loginHint: "Run `gemini` in Terminal once and choose “Login with Google”.")
-            TextField("Model", text: $state.providerSettings.geminiModel, prompt: Text("default"))
+            TextField("Model", text: $state.providerSettings.geminiModel, prompt: Text(""))
+            modelHint("Leave blank for Gemini CLI's default model.")
         case .anthropic:
             SecureField("API key", text: $anthropicKey)
                 .onChange(of: anthropicKey) { Keychain.save(anthropicKey, for: .anthropic) }
@@ -92,7 +103,8 @@ struct ProviderSettingsView: View {
             TextField("Base URL", text: $state.providerSettings.openAIBaseURL)
             SecureField("API key (blank for local servers)", text: $openAIKey)
                 .onChange(of: openAIKey) { Keychain.save(openAIKey, for: .openAI) }
-            TextField("Model ID", text: $state.providerSettings.openAIModel, prompt: Text("required, e.g. the model name your provider lists"))
+            TextField("Model ID", text: $state.providerSettings.openAIModel, prompt: Text(""))
+            modelHint("Required: the model name your provider lists.")
         }
     }
 }
@@ -155,6 +167,8 @@ struct ActionsSettingsView: View {
             }
             .padding(12)
         }
+        .scrollContentBackground(.hidden)
+        .background(Theme.ground)
         .sheet(item: $editing) { a in
             ActionEditor(action: a) { updated in
                 state.updateCustomAction(updated)
@@ -208,7 +222,7 @@ struct ActionEditor: View {
                 .scrollContentBackground(.hidden)
                 .padding(6)
                 .frame(minHeight: 120)
-                .field()
+                .field(Theme.inputFill)
             Text("Example: “Turn this into a LinkedIn post with a strong hook, max 120 words.”")
                 .font(.caption).foregroundStyle(Theme.muted)
             HStack {
@@ -267,6 +281,8 @@ struct ShortcutSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .background(Theme.ground)
         .onReceive(timer) { _ in trusted = SelectionBridge.isTrusted }
     }
 }

@@ -16,6 +16,10 @@ struct ContentView: View {
                 OutputPane().frame(minWidth: 400)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // The pane ground runs up under a transparent toolbar over the detail column only,
+            // so the native sidebar keeps its full height.
+            .background(Theme.ground)
+            .toolbarBackground(.hidden, for: .windowToolbar)
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
@@ -45,9 +49,10 @@ struct HistorySidebar: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(item.title).lineLimit(2).font(.body.weight(.medium))
                         HStack(spacing: 4) {
-                            Text(item.actionName).lineLimit(1)
                             if let r = item.result, let b = r.scoreBefore, let a = r.scoreAfter {
-                                Text("· \(b)→\(a)").monospacedDigit().fixedSize()
+                                Text("\(b)→\(a)").monospacedDigit().fixedSize()
+                            } else {
+                                Text(item.actionName).lineLimit(1)
                             }
                             Spacer(minLength: 6)
                             Text(item.date.formatted(.relative(presentation: .named, unitsStyle: .narrow)))
@@ -89,43 +94,52 @@ struct InputPane: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 8) {
-                Picker("Action", selection: actionSelection) {
-                    ForEach(state.actions) { a in Label(a.name, systemImage: a.icon).tag(a.id) }
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 8) {
+                    Picker("Action", selection: actionSelection) {
+                        ForEach(state.actions) { a in Label(a.name, systemImage: a.icon).tag(a.id) }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                    Spacer()
+                    Text("\(state.draft.count) chars").font(.caption.monospacedDigit()).foregroundStyle(Theme.muted)
+                    Button("Paste") { state.pasteDraft() }.controlSize(.small)
                 }
-                .labelsHidden()
-                .fixedSize()
-                Spacer()
-                Text("\(state.draft.count) chars").font(.caption.monospacedDigit()).foregroundStyle(Theme.muted)
-                Button("Paste") { state.pasteDraft() }.controlSize(.small)
-            }
 
-            ZStack(alignment: .topLeading) {
-                TextEditor(text: $state.draft)
-                    .font(isPrompt ? .system(.body, design: .monospaced) : .body)
-                    .scrollContentBackground(.hidden)
-                    .padding(8)
-                if state.draft.isEmpty {
-                    Text(isPrompt ? "Paste or type a prompt to improve…" : "Paste or type the text to work on…")
+                ZStack(alignment: .topLeading) {
+                    TextEditor(text: $state.draft)
                         .font(isPrompt ? .system(.body, design: .monospaced) : .body)
-                        .foregroundStyle(Theme.muted)
-                        .padding(.horizontal, 13)
-                        .padding(.vertical, 8)
+                        .scrollContentBackground(.hidden)
+                        .padding(8)
+                    if state.draft.isEmpty {
+                        Text(isPrompt ? "Paste or type a prompt to improve…" : "Paste or type the text to work on…")
+                            .font(isPrompt ? .system(.body, design: .monospaced) : .body)
+                            .foregroundStyle(Theme.muted)
+                            .padding(.horizontal, 13)
+                            .padding(.vertical, 8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .field(Theme.inputFill)
+                .frame(minHeight: 160, maxHeight: .infinity)
+            }
+            .padding(16)
+
+            Divider()
+            Group {
+                if isPrompt { promptOptions }
+                else {
+                    Text(state.selectedAction.instruction)
+                        .font(.callout).foregroundStyle(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .allowsHitTesting(false)
                 }
             }
-            .field()
-            .frame(minHeight: 160, maxHeight: .infinity)
+            .padding(16)
 
-            if isPrompt { promptOptions }
-            else {
-                Text(state.selectedAction.instruction)
-                    .font(.callout).foregroundStyle(Theme.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
+            Divider()
             HStack(spacing: 10) {
                 if state.isRunning {
                     ProgressView().controlSize(.small)
@@ -142,29 +156,34 @@ struct InputPane: View {
                 .help("Run (⌘↩)")
                 .disabled(state.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || state.isRunning)
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
         }
-        .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(Theme.ground)
     }
 
-    @ViewBuilder private var promptOptions: some View {
-        Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 10) {
-            GridRow {
-                Text("Goal").gridColumnAlignment(.trailing)
-                TextField("Optional: who it's for, what good looks like", text: $state.goal, axis: .vertical)
+    private var promptOptions: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Goal").foregroundStyle(Theme.muted)
+                    Spacer()
+                    Text("Optional").font(.caption).foregroundStyle(Theme.muted)
+                }
+                TextField("Goal", text: $state.goal, prompt: Text(""), axis: .vertical)
                     .lineLimit(1...4)
                     .textFieldStyle(.roundedBorder)
+                    .placeholder("Who it's for, what good looks like", when: state.goal.isEmpty)
             }
-            GridRow {
-                Text("Target")
+            OptionRow(label: "Target") {
                 Picker("Target", selection: $state.target) {
                     ForEach(TargetModel.allCases) { Text($0.rawValue).tag($0) }
                 }
                 .labelsHidden()
                 .frame(width: 170)
             }
-            GridRow {
-                Text("Depth")
+            OptionRow(label: "Depth") {
                 Picker("Depth", selection: $state.depth) {
                     ForEach(Depth.allCases) { Text($0.rawValue).tag($0) }
                 }
@@ -172,29 +191,27 @@ struct InputPane: View {
                 .labelsHidden()
                 .fixedSize()
             }
-        }
-
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text("Techniques")
-                Text(state.techniques.isEmpty ? "Auto: the engineer picks" : "\(state.techniques.count) required")
-                    .font(.caption).foregroundStyle(Theme.muted)
-                Spacer()
-                if !state.techniques.isEmpty {
-                    Button("Clear") { state.techniques.removeAll() }.buttonStyle(.link).controlSize(.small)
-                }
-            }
-            FlowLayout(spacing: 6) {
-                ForEach(Technique.allCases) { t in
-                    Toggle(isOn: Binding(
-                        get: { state.techniques.contains(t) },
-                        set: { on in if on { state.techniques.insert(t) } else { state.techniques.remove(t) } })) {
-                        Label(t.rawValue, systemImage: t.icon)
+            VStack(alignment: .leading, spacing: 8) {
+                OptionRow(label: "Techniques") {
+                    if state.techniques.isEmpty {
+                        Text("Auto").font(.callout).foregroundStyle(Theme.muted)
+                    } else {
+                        Button("Clear \(state.techniques.count)") { state.techniques.removeAll() }
+                            .buttonStyle(.link).controlSize(.small)
                     }
-                    .toggleStyle(.button)
-                    .buttonBorderShape(.capsule)
-                    .controlSize(.small)
-                    .help(t.instruction)
+                }
+                FlowLayout(spacing: 6) {
+                    ForEach(Technique.allCases) { t in
+                        Toggle(isOn: Binding(
+                            get: { state.techniques.contains(t) },
+                            set: { on in if on { state.techniques.insert(t) } else { state.techniques.remove(t) } })) {
+                            Label(t.rawValue, systemImage: t.icon)
+                        }
+                        .toggleStyle(.button)
+                        .buttonBorderShape(.capsule)
+                        .controlSize(.small)
+                        .help(t.instruction)
+                    }
                 }
             }
         }
@@ -236,28 +253,33 @@ struct OutputPane: View {
     @EnvironmentObject var state: AppState
 
     var body: some View {
-        if state.raw.isEmpty && !state.isRunning && state.errorMessage == nil {
-            ContentUnavailableView("Nothing yet", systemImage: state.selectedAction.icon,
-                                   description: Text("Write or paste text on the left, then press ⌘↩.\nTip: select text in any app and press \(state.hotKey.label)."))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 28) {
-                    if let e = state.errorMessage { ErrorBanner(message: e) }
-                    if state.isRunning || !state.raw.isEmpty {   // a bare error shows no empty result block
-                        if state.selectedAction.kind == .promptEngineer {
-                            PromptReport(r: state.result ?? .empty)
-                        } else {
-                            OutputBlock(title: state.selectedAction.name, icon: state.selectedAction.icon,
-                                        text: state.output, monospaced: false)
+        Group {
+            if state.raw.isEmpty && !state.isRunning && state.errorMessage == nil {
+                ContentUnavailableView("Nothing yet", systemImage: state.selectedAction.icon,
+                                       description: Text("Write or paste text on the left, then press ⌘↩.\nTip: select text in any app and press \(state.hotKey.label)."))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        if let e = state.errorMessage { ErrorBanner(message: e).padding(.bottom, 18) }
+                        if state.isRunning || !state.raw.isEmpty {   // a bare error shows no empty result block
+                            if state.selectedAction.kind == .promptEngineer {
+                                PromptReport(r: state.result ?? .empty)
+                            } else {
+                                OutputBlock(title: state.selectedAction.name, text: state.output, monospaced: false)
+                            }
+                        }
+                        if !state.isRunning && !state.output.isEmpty {
+                            SectionRule()
+                            RefineBox()
                         }
                     }
-                    if !state.isRunning && !state.output.isEmpty { RefineBox() }
+                    .padding(20)
+                    .motion(layoutKey)
                 }
-                .padding(20)
-                .motion(layoutKey)
             }
         }
+        .background(Theme.groundAlt)
     }
 
     /// Changes only when a section appears or disappears, so streamed text isn't animated chunk by chunk.
@@ -283,61 +305,46 @@ struct ErrorBanner: View {
     }
 }
 
-/// The improved prompt leads: it is what the user came for. Questions follow because answering them re-runs it.
+/// Score first (the signature meter), then the improved prompt, which is what the user came for.
+/// Questions follow because answering them re-runs it.
 struct PromptReport: View {
     @EnvironmentObject var state: AppState
     let r: ForgeResult
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 16) {
-            ScoreBadge(title: "Before", score: r.scoreBefore)
-            Text(Image(systemName: "arrow.right")).font(.title3).foregroundStyle(Theme.muted)
-            ScoreBadge(title: "After", score: r.scoreAfter)
-            Spacer()
-            if state.isRunning {
-                HStack(spacing: 6) {
-                    ProgressView().controlSize(.small)
-                    Text("Engineering…").foregroundStyle(Theme.muted)
-                }
-            }
-        }
-        OutputBlock(title: "Improved prompt", icon: "sparkles", text: r.improvedPrompt, monospaced: true)
+        ScoreMeter(before: r.scoreBefore, after: r.scoreAfter, isRunning: state.isRunning)
+        SectionRule()
+        OutputBlock(title: "Improved prompt", text: r.improvedPrompt, monospaced: true)
         if !r.questions.isEmpty && !state.isRunning {
+            SectionRule()
             QuestionsSection(questions: r.questions)
         }
         if !r.diagnosis.isEmpty {
-            BulletSection(title: "What held it back", icon: "stethoscope", items: r.diagnosis)
+            SectionRule()
+            BulletSection(title: "What held it back", items: r.diagnosis)
         }
         if !r.changes.isEmpty {
-            BulletSection(title: "What changed", icon: "list.bullet.clipboard", items: r.changes)
+            SectionRule()
+            BulletSection(title: "What changed", items: r.changes)
         }
-    }
-}
-
-struct SectionTitle: View {
-    let title: String
-    let icon: String
-
-    var body: some View {
-        Label { Text(title) } icon: { Image(systemName: icon).foregroundStyle(Theme.muted) }
-            .font(.headline)
     }
 }
 
 struct OutputBlock: View {
     @EnvironmentObject var state: AppState
     let title: String
-    let icon: String
     let text: String
     let monospaced: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                SectionTitle(title: title, icon: icon)
+                Text(title).font(.headline)
                 if state.isRunning && state.selectedAction.kind != .promptEngineer { ProgressView().controlSize(.small) }
                 Spacer()
                 Button("Use as input") { state.useOutputAsDraft() }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(Theme.muted)
                     .disabled(text.isEmpty || state.isRunning)
                 Button { state.copy(text) } label: {
                     Label(state.justCopied ? "Copied" : "Copy", systemImage: state.justCopied ? "checkmark" : "doc.on.doc")
@@ -363,10 +370,11 @@ struct RefineBox: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            SectionTitle(title: "Refine", icon: "slider.horizontal.3")
+            Text("Refine").font(.headline)
             HStack {
-                TextField("e.g. “shorter”, “return JSON”, “more formal”", text: $state.feedback)
+                TextField("Refine", text: $state.feedback, prompt: Text(""))
                     .textFieldStyle(.roundedBorder)
+                    .placeholder("e.g. “shorter”, “return JSON”, “more formal”", when: state.feedback.isEmpty)
                     .onSubmit { state.refine() }
                 Button("Refine") { state.refine() }
                     .disabled(state.feedback.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -375,44 +383,18 @@ struct RefineBox: View {
     }
 }
 
-struct ScoreBadge: View {
-    let title: String
-    let score: Int?
-
-    private var color: Color {
-        guard let s = score else { return Color.primary.opacity(0.2) }
-        return s < 50 ? .red : s < 75 ? .orange : .green
-    }
-
-    // The number stays in the primary color (orange/green text fails WCAG AA); a status dot carries the color.
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            (Text(score.map(String.init) ?? "–").font(.title.weight(.semibold).monospacedDigit())
-             + Text(" /100").font(.callout).foregroundStyle(Theme.muted))
-                .contentTransition(.numericText())
-            HStack(spacing: 5) {
-                Circle().fill(color).frame(width: 7, height: 7)
-                Text(title).font(.caption).foregroundStyle(Theme.muted)
-            }
-        }
-        .motion(score)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(title) score")
-        .accessibilityValue(score.map { "\($0) out of 100" } ?? "Pending")
-    }
-}
-
 struct BulletSection: View {
     let title: String
-    let icon: String
     let items: [String]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            SectionTitle(title: title, icon: icon)
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title).font(.headline)
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("•").foregroundStyle(Theme.muted)
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Text(Image(systemName: "circle.fill")).font(.system(size: 6)).baselineOffset(2)
+                        .foregroundStyle(Theme.dot)
+                        .accessibilityHidden(true)
                     Text(item).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -426,14 +408,15 @@ struct QuestionsSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionTitle(title: "Questions that would sharpen it", icon: "questionmark.bubble")
+            Text("Questions that would sharpen it").font(.headline)
             ForEach(questions, id: \.self) { q in
                 VStack(alignment: .leading, spacing: 6) {
                     Text(q).fixedSize(horizontal: false, vertical: true)
-                    TextField("Your answer (optional)", text: Binding(
+                    TextField("Answer", text: Binding(
                         get: { state.answers[q, default: ""] },
-                        set: { state.answers[q] = $0 }))
+                        set: { state.answers[q] = $0 }), prompt: Text(""))
                         .textFieldStyle(.roundedBorder)
+                        .placeholder("Your answer (optional)", when: state.answers[q, default: ""].isEmpty)
                 }
             }
             Button("Re-run with answers") { state.submitAnswers() }

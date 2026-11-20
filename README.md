@@ -18,6 +18,7 @@
 - [Actions](#actions)
 - [How Improve Prompt works](#how-improve-prompt-works)
 - [Architecture](#architecture)
+- [Design](#design)
 - [Extending](#extending)
 - [Building & testing](#building--testing)
 - [Troubleshooting](#troubleshooting)
@@ -32,10 +33,14 @@
 ### Option A: DMG installer (recommended)
 1. Download `Hone-<version>.dmg` from the repo's **[Releases](../../releases)** page.
 2. Open it and drag **Hone** into **Applications**.
-3. Open it. Releases are signed with a Developer ID and notarized by Apple, so macOS opens them after the usual confirmation. (The 1.0.0 Prompt Forge DMG was ad-hoc signed; if macOS blocks an old build, run `xattr -dr com.apple.quarantine "/Applications/Hone.app"` once.)
+3. Open it. A notarized release (Developer ID signed) opens after the usual confirmation. An ad-hoc-signed build, including 1.0.0 (released as Prompt Forge), is blocked on first launch; clear it once:
+   ```bash
+   xattr -dr com.apple.quarantine "/Applications/Hone.app"
+   ```
+   or open it once, then click **Open Anyway** in **System Settings → Privacy & Security**.
 
 ### Option B: build from source
-Requires Xcode or the Xcode Command Line Tools (Swift 5.10+).
+Requires Xcode or the Xcode Command Line Tools (Swift 5.10+). Full Xcode also compiles the accent-color asset; with only the Command Line Tools the app uses your system accent color.
 ```bash
 gh repo clone dvd90/prompt-forge   # private repo
 cd prompt-forge
@@ -74,10 +79,11 @@ select text  →  ⌃⌥Space  →  press 1–9 (or click)  →  ⏎ Replace   o
 | ⌘, | Settings |
 
 For **Improve Prompt** you also get:
+- **Score**: the draft's score and the improved prompt's score (0–100) on one gradient track, with the improved prompt and **Copy** right below it.
 - **Target**: Claude, GPT, Gemini, Any LLM, Coding agent (Claude Code / Cursor) or Image model. The rewrite follows each target's conventions.
 - **Depth**: *Light* (minimal edits), *Standard*, or *Production* (a reusable system prompt with `{{VARIABLES}}`).
 - **Techniques**: leave on *auto*, or force specific ones: Role, Context & why, Success criteria, Structure / tags, Examples, Step-by-step, Output format, Edge cases, Variables.
-- **Goal / context**: optional notes on who uses the prompt and what a great answer looks like.
+- **Goal**: optional notes on who uses the prompt and what a great answer looks like.
 - **Questions**: answer them inline and click **Re-run with answers** to fill the placeholders.
 - **Refine**: free-text feedback ("shorter", "return JSON") that keeps the conversation going.
 
@@ -201,7 +207,7 @@ Sources/PromptForge/
     ├── Views.swift             Main window
     ├── QuickPanel.swift        Floating non-activating panel
     ├── SettingsView.swift      Provider / Actions / Shortcut tabs
-    └── Theme.swift             Muted text color, text-well style, Reduce Motion-aware animation
+    └── Theme.swift             Design tokens, ScoreMeter, shared rows, wells and motion
 ```
 
 **Data on disk**
@@ -210,6 +216,17 @@ Sources/PromptForge/
 - API keys: Keychain, service `com.dvd90.PromptForge`
 
 Hone shipped as Prompt Forge in 1.0. The bundle ID, Swift module, Keychain service and data paths keep the `PromptForge` name so existing settings, keys and history carry over.
+
+---
+
+## Design
+
+Hone's look is adapted from Dial, a macOS menu-bar time tracker: graphite (dark) and mist (light) surfaces, hairline-ruled sections, one periwinkle accent, and the score drawn as a sunrise-gradient track. Controls and navigation stay standard macOS, and the app follows the system light/dark setting.
+
+- [`DESIGN.md`](DESIGN.md): tokens (colors, type, spacing), components and rules.
+- [`PRODUCT.md`](PRODUCT.md): who Hone is for and the principles design decisions follow.
+
+Accessibility: text meets WCAG AA contrast in both appearances, animations respect Reduce Motion, and the score track has a VoiceOver label.
 
 ---
 
@@ -243,10 +260,10 @@ swift build                               # debug build
 ./build.sh                                # → build/Hone.app (Developer ID signed if installed, else ad-hoc)
 ./build.sh --install                      # … and copy to /Applications
 ./install.sh                              # quit running copy, install, register Services, launch
-scripts/make_dmg.sh                       # → build/Hone-<version>.dmg (signed + notarized with Developer ID)
+scripts/make_dmg.sh                       # → build/Hone-<version>.dmg (signed + notarized when a Developer ID cert is installed)
 swift scripts/make_icon.swift && iconutil -c icns AppIcon.iconset   # regenerate the icon
 
-swift test                                # unit tests (parser, actions, CLI flattening)
+swift test                                # unit tests (parser, actions, CLI flattening, saved-data decoding, layout)
 PF_LIVE=1 swift test --filter LiveTests   # real calls via your claude + codex logins
 ```
 
