@@ -1,5 +1,7 @@
 # Hone ✨
 
+[![CI](https://github.com/dvd90/prompt-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/dvd90/prompt-forge/actions/workflows/ci.yml)
+
 **A native macOS app that turns rough prompts into great ones and runs AI text actions on any text you select, using the AI subscription you already pay for.**
 
 - 🪄 **Improve Prompt**: rewrites your prompt with proven prompt-engineering techniques, scores it before and after, explains what was wrong, and asks questions that make it better.
@@ -266,6 +268,8 @@ swift scripts/make_icon.swift && iconutil -c icns AppIcon.iconset   # regenerate
 swift test                                # unit tests (parser, actions, CLI flattening, saved-data decoding, layout)
 PF_LIVE=1 swift test --filter LiveTests   # real calls via your claude + codex logins
 ```
+
+**CI:** GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) builds the app and runs the unit tests on a macOS runner for every pull request and every push to `main`. Docs-only changes skip it. Live tests never run in CI.
 
 **One-time signing setup** (needed for notarized releases)
 1. Xcode → Settings → Accounts → your team → **Manage Certificates… → + → Developer ID Application** (the Account Holder must create it). `build.sh` picks it up automatically.

@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  pull_request:
+    paths-ignore: ["**.md"]
+  push:
+    branches: [main]
+    paths-ignore: ["**.md"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch cancels the run in progress (saves macOS minutes).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build and unit tests
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Toolchain
+        run: swift --version
+
+      - name: Build (app and tests)
+        run: swift build --build-tests
+
+      # LiveTests skip themselves without PF_LIVE=1, so no provider calls or secrets run here.
+      - name: Unit tests
+        run: swift test --skip-build
