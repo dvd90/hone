@@ -8,7 +8,9 @@ Formerly named Prompt Forge. The bundle ID, Swift module/target, Keychain servic
 1. `swift build`: must finish with zero warnings.
 2. `swift test`: add tests for any new logic.
 3. `PF_LIVE=1 swift test --filter LiveTests`: only when touching providers or prompts. These are real calls on the owner's subscription, so keep inputs tiny.
-4. `./install.sh`: rebuilds, installs to /Applications and relaunches. The app is ad-hoc signed, so Accessibility must be re-granted after each rebuild.
+4. `./install.sh`: rebuilds, installs to /Applications and relaunches. `build.sh` signs with the Developer ID Application certificate when installed (Accessibility then survives rebuilds) and falls back to ad-hoc (Accessibility must be re-granted after each rebuild).
+
+Releases: `scripts/make_dmg.sh` signs, notarizes (keychain profile `hone-notary`) and staples the DMG. Never run it, tag or publish a release unless asked: notarization uploads the build to Apple.
 
 ## Hard constraints
 - Swift 5 language mode, swift-tools-version 5.10, macOS 14+. Do not migrate to Swift 6 strict concurrency unless asked.

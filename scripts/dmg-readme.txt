@@ -1,13 +1,9 @@
-PROMPT FORGE: INSTALL
+HONE: INSTALL
 
 1. Drag "Hone" onto the Applications folder.
 
-2. First launch: the app isn't notarized by Apple, so macOS will block it once.
-   Fix it with ONE of these:
-   - Open Terminal and run:
-       xattr -dr com.apple.quarantine "/Applications/Hone.app"
-   - Or try to open it, then go to System Settings > Privacy & Security
-     and click "Open Anyway".
+2. Open it from Applications. Hone is signed and notarized by Apple,
+   so macOS lets it open after a normal confirmation.
 
 3. Pick how it talks to an AI: Hone > Settings (Cmd+,) > Provider.
    The default is your Claude subscription through Claude Code

@@ -32,11 +32,7 @@
 ### Option A: DMG installer (recommended)
 1. Download `Hone-<version>.dmg` from the repo's **[Releases](../../releases)** page.
 2. Open it and drag **Hone** into **Applications**.
-3. The app is ad-hoc signed, not notarized, so macOS blocks the first launch. Clear that once:
-   ```bash
-   xattr -dr com.apple.quarantine "/Applications/Hone.app"
-   ```
-   Or open it once, then go to **System Settings → Privacy & Security → Open Anyway**.
+3. Open it. Releases are signed with a Developer ID and notarized by Apple, so macOS opens them after the usual confirmation. (The 1.0.0 Prompt Forge DMG was ad-hoc signed; if macOS blocks an old build, run `xattr -dr com.apple.quarantine "/Applications/Hone.app"` once.)
 
 ### Option B: build from source
 Requires Xcode or the Xcode Command Line Tools (Swift 5.10+).
@@ -244,15 +240,22 @@ builtIn("bulletize", "Bullet Points", "list.dash",
 
 ```bash
 swift build                               # debug build
-./build.sh                                # → build/Hone.app (release, ad-hoc signed)
+./build.sh                                # → build/Hone.app (Developer ID signed if installed, else ad-hoc)
 ./build.sh --install                      # … and copy to /Applications
 ./install.sh                              # quit running copy, install, register Services, launch
-scripts/make_dmg.sh                       # → build/Hone-<version>.dmg
+scripts/make_dmg.sh                       # → build/Hone-<version>.dmg (signed + notarized with Developer ID)
 swift scripts/make_icon.swift && iconutil -c icns AppIcon.iconset   # regenerate the icon
 
 swift test                                # unit tests (parser, actions, CLI flattening)
 PF_LIVE=1 swift test --filter LiveTests   # real calls via your claude + codex logins
 ```
+
+**One-time signing setup** (needed for notarized releases)
+1. Xcode → Settings → Accounts → your team → **Manage Certificates… → + → Developer ID Application** (the Account Holder must create it). `build.sh` picks it up automatically.
+2. Store notarization credentials in the Keychain (asks for an [app-specific password](https://account.apple.com)):
+   ```bash
+   xcrun notarytool store-credentials hone-notary --apple-id <your-apple-id> --team-id <your-team-id>
+   ```
 
 **Release a new version**
 ```bash
@@ -267,9 +270,9 @@ gh release create v1.1.0 build/Hone-1.1.0.dmg --title "v1.1.0" --notes "…"
 
 | Symptom | Fix |
 |---|---|
-| "Hone can't be opened" | `xattr -dr com.apple.quarantine "/Applications/Hone.app"` |
+| "Hone can't be opened" | Only for ad-hoc builds (not notarized): `xattr -dr com.apple.quarantine "/Applications/Hone.app"` |
 | Hotkey does nothing | Another app may own the combo. Pick another in Settings → Shortcut |
-| Hotkey uses the clipboard instead of the selection; no Replace button | Grant Accessibility. **After every rebuild** of an ad-hoc-signed app, remove and re-add it in the Accessibility list |
+| Hotkey uses the clipboard instead of the selection; no Replace button | Grant Accessibility. Developer ID builds keep the grant; **after every rebuild** of an ad-hoc build, remove and re-add it in the Accessibility list |
 | "Couldn't find the `claude` command" | Settings → Provider shows where it looked. Install the CLI, or make sure it's on your login-shell `PATH` |
 | `Claude Code failed: … login` | Run `claude` in Terminal and sign in |
 | Gemini: "Please set an Auth method" | Run `gemini` once and choose "Login with Google" |

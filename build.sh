@@ -1,5 +1,7 @@
 #!/bin/bash
-# Builds Hone.app (ad-hoc signed). Usage: ./build.sh [--install]
+# Builds Hone.app. Usage: ./build.sh [--install]
+# Signs with your Developer ID Application certificate when one is installed (notarizable, and
+# Accessibility permission survives rebuilds); otherwise ad-hoc. Override with SIGN_ID="…" or SIGN_ID=-.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -12,8 +14,12 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/PromptForge"
 cp Info.plist "$APP/Contents/Info.plist"
 [ -f AppIcon.icns ] && cp AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
-codesign --force --deep --sign - "$APP"
-echo "Built: $APP"
+SIGN_ID="${SIGN_ID:-$(security find-identity -v -p codesigning | sed -n 's/.*"\(Developer ID Application: .*\)"$/\1/p' | head -1)}"
+SIGN_ID="${SIGN_ID:--}"
+if [ "$SIGN_ID" = "-" ]; then TIMESTAMP="--timestamp=none"; else TIMESTAMP="--timestamp"; fi
+# Hardened runtime is required for notarization; the app needs no entitlements.
+codesign --force --options runtime "$TIMESTAMP" --sign "$SIGN_ID" "$APP"
+echo "Built: $APP (signed: $([ "$SIGN_ID" = "-" ] && echo ad-hoc || echo "$SIGN_ID"))"
 
 if [ "${1:-}" = "--install" ]; then
   rm -rf "/Applications/Hone.app"
