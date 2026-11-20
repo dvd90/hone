@@ -5,3 +5,5 @@ build/
 .swiftpm/
 *.xcodeproj/
 AppIcon.iconset/
+.impeccable
+.history
