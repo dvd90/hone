@@ -204,7 +204,8 @@ Sources/PromptForge/
 └── UI/
     ├── Views.swift             Main window
     ├── QuickPanel.swift        Floating non-activating panel
-    └── SettingsView.swift      Provider / Actions / Shortcut tabs
+    ├── SettingsView.swift      Provider / Actions / Shortcut tabs
+    └── Theme.swift             Accent, corner radii, glass / card / capsule-button styles
 ```
 
 **Data on disk**

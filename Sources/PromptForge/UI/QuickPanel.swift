@@ -185,18 +185,18 @@ struct QuickPanelView: View {
                 Text("Hone").font(.headline)
                 Spacer()
                 Text(state.providerSettings.kind.shortLabel)
-                    .font(.caption).foregroundStyle(.secondary)
-                    .padding(.horizontal, 6).padding(.vertical, 2)
-                    .background(.quaternary, in: Capsule())
+                    .font(.caption).foregroundStyle(Theme.muted)
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .glass(in: Capsule())
             }
 
             Text(c.sourceText.isEmpty ? "No text found. Select text in any app (or copy it), then press the hotkey." : c.sourceText)
                 .lineLimit(c.phase == .choosing ? 4 : 2)
                 .font(.callout)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(Theme.muted)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(8)
-                .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
+                .padding(10)
+                .field()
 
             switch c.phase {
             case .choosing:
@@ -209,6 +209,8 @@ struct QuickPanelView: View {
         .padding(.top, 12)
         .frame(width: 560)
         .background(Button("") { c.close() }.keyboardShortcut(.cancelAction).opacity(0))
+        .animation(Theme.motion, value: c.phase)
+        .tint(Theme.accent)
     }
 
     private var chooser: some View {
@@ -220,18 +222,18 @@ struct QuickPanelView: View {
                             Image(systemName: a.icon).frame(width: 16)
                             Text(a.name).lineLimit(1)
                             Spacer(minLength: 0)
-                            if i < 9 { Text("\(i + 1)").font(.caption.monospaced()).foregroundStyle(.tertiary) }
+                            if i < 9 { Text("\(i + 1)").font(.caption.monospaced()).foregroundStyle(Theme.muted) }
                         }
                         .padding(.vertical, 4)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.bordered)
+                    .capsuleButton()
                     .modifier(NumberShortcut(index: i))
                     .disabled(c.sourceText.isEmpty)
                 }
             }
             Text("Press 1–9 or click · Esc to close")
-                .font(.caption2).foregroundStyle(.tertiary)
+                .font(.caption2).foregroundStyle(Theme.muted)
         }
     }
 
@@ -241,14 +243,15 @@ struct QuickPanelView: View {
                 if let a = c.action { Label(a.name, systemImage: a.icon).font(.subheadline.weight(.semibold)) }
                 if c.phase == .running { ProgressView().controlSize(.small) }
                 Spacer()
-                if let s = c.scoreLine { Text("Score \(s)").font(.caption.monospacedDigit()).foregroundStyle(.green) }
+                if let s = c.scoreLine { Text("Score \(s)").font(.caption.monospacedDigit()).foregroundStyle(Theme.muted) }
             }
 
             if case let .failed(msg) = c.phase {
-                Label(msg, systemImage: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.red)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
+                // Red only on the icon: red body text fails WCAG AA.
+                Label { Text(msg).textSelection(.enabled) } icon: {
+                    Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.red)
+                }
+                .fixedSize(horizontal: false, vertical: true)
             } else {
                 ScrollView {
                     Text(c.output.isEmpty ? "…" : c.output)
@@ -258,24 +261,27 @@ struct QuickPanelView: View {
                         .padding(10)
                 }
                 .frame(minHeight: 120, maxHeight: 320)
-                .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
-                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(nsColor: .separatorColor)))
+                .field()
             }
 
             HStack {
                 Button { c.back() } label: { Label("Actions", systemImage: "chevron.left") }
+                    .capsuleButton()
                     .keyboardShortcut(.leftArrow, modifiers: .command)
                 Button("Open in App") { c.openInApp() }
+                    .capsuleButton()
                     .disabled(c.phase != .done)
                 Spacer()
                 Button { c.copyOutput() } label: {
                     Label(c.copied ? "Copied" : "Copy", systemImage: c.copied ? "checkmark" : "doc.on.doc")
+                        .contentTransition(.symbolEffect(.replace))
                 }
+                .capsuleButton()
                 .keyboardShortcut("c", modifiers: [.command, .shift])
                 .disabled(c.output.isEmpty)
                 if c.canReplace {
                     Button { c.replace() } label: { Label("Replace", systemImage: "arrow.uturn.left") }
-                        .buttonStyle(.borderedProminent)
+                        .capsuleButton(prominent: true)
                         .keyboardShortcut(.defaultAction)
                         .disabled(c.phase != .done)
                 }

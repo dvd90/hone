@@ -26,5 +26,6 @@ Formerly named Prompt Forge. The bundle ID, Swift module/target, Keychain servic
 
 ## Working style
 - Smallest change that works; match the existing style.
+- UI: reuse the tokens and modifiers in `UI/Theme.swift` (`card()`, `field()`, `glass(in:)`, `capsuleButton()`). Use `Theme.muted` for secondary text: system `.secondary` is below WCAG AA contrast.
 - Work on a feature branch and commit with clear messages. Do not push, tag or release unless asked.
 - Report briefly: what changed, what you actually tested, what is untested.

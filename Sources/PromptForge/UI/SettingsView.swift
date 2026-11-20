@@ -10,6 +10,7 @@ struct SettingsView: View {
             ShortcutSettingsView().tabItem { Label("Shortcut", systemImage: "keyboard") }
         }
         .frame(width: 600, height: 520)
+        .tint(Theme.accent)
     }
 }
 
@@ -31,7 +32,7 @@ struct ProviderSettingsView: View {
                 .pickerStyle(.radioGroup)
             } footer: {
                 Text("Subscriptions run through the official CLI you're already logged into. No API key needed, and usage counts against your plan.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(Theme.muted)
             }
 
             Section(state.providerSettings.kind.shortLabel) { details }
@@ -49,7 +50,7 @@ struct ProviderSettingsView: View {
                     .disabled(testing)
                     if testing { ProgressView().controlSize(.small) }
                     if let t = testResult {
-                        Text(t).font(.caption).foregroundStyle(t.hasPrefix("✓") ? .green : .red).lineLimit(3).textSelection(.enabled)
+                        Text(t).font(.caption).foregroundStyle(.primary).lineLimit(3).textSelection(.enabled)
                     }
                 }
             }
@@ -115,7 +116,7 @@ struct CLIStatusRow: View {
                     Text("`\(name)` was not found on your PATH")
                 }
             }
-            Text(.init(loginHint)).font(.caption).foregroundStyle(.secondary)
+            Text(.init(loginHint)).font(.caption).foregroundStyle(Theme.muted)
         }
         .task(id: name) {
             checked = false
@@ -140,7 +141,7 @@ struct ActionsSettingsView: View {
                 Section("Custom") {
                     if state.customActions.isEmpty {
                         Text("Add your own actions: any instruction you want to apply to selected text.")
-                            .font(.caption).foregroundStyle(.secondary)
+                            .font(.caption).foregroundStyle(Theme.muted)
                     }
                     ForEach(state.customActions) { a in row(a) }
                 }
@@ -149,7 +150,7 @@ struct ActionsSettingsView: View {
                 Button { editing = state.addCustomAction() } label: { Label("Add custom action", systemImage: "plus") }
                 Spacer()
                 Text("The first 9 visible actions get number shortcuts in the quick panel.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(Theme.muted)
             }
             .padding(12)
         }
@@ -172,7 +173,7 @@ struct ActionsSettingsView: View {
                 Label(a.name, systemImage: a.icon)
             }
             Spacer()
-            Text(a.instruction).font(.caption).foregroundStyle(.secondary).lineLimit(1).frame(maxWidth: 260, alignment: .trailing)
+            Text(a.instruction).font(.caption).foregroundStyle(Theme.muted).lineLimit(1).frame(maxWidth: 260, alignment: .trailing)
             if !a.builtIn {
                 Button("Edit") { editing = a }.controlSize(.small)
             }
@@ -196,20 +197,24 @@ struct ActionEditor: View {
                 ForEach(icons, id: \.self) { i in
                     Button { action.icon = i } label: { Image(systemName: i).frame(width: 22, height: 22) }
                         .buttonStyle(.bordered)
+                        .buttonBorderShape(.circle)
                         .tint(action.icon == i ? .accentColor : .secondary)
                 }
             }
             Text("Instruction: what should happen to the selected text?").font(.subheadline)
             TextEditor(text: $action.instruction)
                 .font(.body)
+                .scrollContentBackground(.hidden)
+                .padding(6)
                 .frame(minHeight: 120)
-                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor)))
+                .field()
             Text("Example: “Turn this into a LinkedIn post with a strong hook, max 120 words.”")
-                .font(.caption).foregroundStyle(.secondary)
+                .font(.caption).foregroundStyle(Theme.muted)
             HStack {
                 Button("Delete", role: .destructive, action: onDelete)
                 Spacer()
                 Button("Save") { onSave(action) }
+                    .capsuleButton(prominent: true)
                     .keyboardShortcut(.defaultAction)
                     .disabled(action.name.trimmingCharacters(in: .whitespaces).isEmpty ||
                               action.instruction.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -235,7 +240,7 @@ struct ShortcutSettingsView: View {
                 }
             } footer: {
                 Text("Select text in any app, press the hotkey, pick an action, then Replace (⏎) or Copy.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(Theme.muted)
             }
 
             Section("Accessibility permission") {
@@ -256,7 +261,7 @@ struct ShortcutSettingsView: View {
 
             Section("Also available") {
                 Text("Right-click selected text → Services → **Hone: Improve Prompt** or **Hone: Quick Actions**. You can give these their own shortcut in System Settings → Keyboard → Keyboard Shortcuts → Services.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(Theme.muted)
             }
         }
         .formStyle(.grouped)
