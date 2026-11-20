@@ -1,6 +1,7 @@
 # Hone ✨
 
 [![CI](https://github.com/dvd90/prompt-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/dvd90/prompt-forge/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **A native macOS app that turns rough prompts into great ones and runs AI text actions on any text you select, using the AI subscription you already pay for.**
 
@@ -9,6 +10,8 @@
 - ⌨️ **Works everywhere**: select text in any app, press **⌃⌥Space**, pick an action, then **Replace** it in place or **Copy** it.
 - 🔌 **Bring your own AI**: Claude, ChatGPT or Gemini **subscriptions** through their official CLIs, or an Anthropic / OpenAI-compatible **API key** (OpenAI, OpenRouter, Ollama, LM Studio…).
 - 🔒 **Private by design**: no backend, no telemetry. Keys live in the macOS Keychain, and text goes only to the provider you choose.
+
+Hone is open source under the [MIT License](LICENSE), and improvements are welcome: bug reports, ideas, new actions, new providers, tests and fixes. See [Contributing](#contributing).
 
 ---
 
@@ -25,6 +28,8 @@
 - [Building & testing](#building--testing)
 - [Troubleshooting](#troubleshooting)
 - [Privacy & security](#privacy--security)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
@@ -309,6 +314,50 @@ gh release create v1.1.0 build/Hone-1.1.0.dmg --title "v1.1.0" --notes "…"
 - Selected text is wrapped in delimiters and labelled as content, which hardens the actions against prompt injection.
 - CLI calls run **without tools**, in a read-only or plan mode and an empty temp folder, so a model can't touch your files.
 - After capturing a selection with ⌘C, the app restores your clipboard (all types).
+
+---
+
+## Contributing
+
+Contributions of every size are welcome, from a typo fix to a new provider. If you're unsure whether an idea fits, start a thread in [Discussions](../../discussions) before writing code.
+
+### Where help is most useful
+- **Gemini CLI provider:** it hasn't been tested end to end yet. Try it with your Google login and report what happens.
+- **Hotkey and Replace across apps:** capturing a selection with ⌘C and pasting back with ⌘V depends on the target app. Report apps where it misbehaves (browsers, Electron apps, terminals, editors), with steps.
+- **New built-in actions:** each is one entry in `Actions/Actions.swift` (see [Extending](#extending)).
+- **New providers:** conform to `LLMProvider` and wire it into `ProviderFactory` and Settings.
+- **Tests:** more coverage for `ActionEngine`, the SSE parsing in `HTTPProviders.swift`, and `ForgeResult.parse` on unusual model output.
+- **Accessibility and localization:** VoiceOver and keyboard-only walkthroughs, and translated UI strings.
+
+### Reporting a bug
+Open an [issue](../../issues) with your macOS version, Hone version, provider, the steps to reproduce, and what you expected instead. Leave out API keys and any private text you were working on.
+
+### Sending a pull request
+1. Fork the repo and create a branch from `main`.
+2. Build and test. `swift build` should finish with zero warnings, and `swift test` should pass. Add tests for new logic. `PF_LIVE=1 swift test --filter LiveTests` makes real calls on your own Claude Code and Codex logins, and is only needed when you change providers or prompts.
+3. Keep the pull request focused on one change, and say what you tested and on which macOS version. CI runs the build and unit tests on every pull request.
+
+By contributing, you agree that your contributions are licensed under the [MIT License](LICENSE).
+
+### Ground rules
+These keep Hone private, native and dependency-free:
+- No third-party packages, telemetry, or new network destinations without discussing it first.
+- API keys live only in the Keychain.
+- Selected text is content, never instructions: keep it inside the `<text>` / `<draft_prompt>` delimiters.
+- Use standard macOS controls and follow [`DESIGN.md`](DESIGN.md) for colors, spacing and components.
+- Don't change the bundle ID, the history file format or the settings keys without a migration, so existing users keep their data.
+- Swift 5 language mode, macOS 14+.
+
+[`CLAUDE.md`](CLAUDE.md) holds the same rules in more detail (it doubles as guidance for AI coding agents).
+
+### Security
+For a security problem, please don't open a public issue. Report it privately through the repository's **Security** tab (**Report a vulnerability**).
+
+---
+
+## License
+
+Hone is released under the [MIT License](LICENSE).
 
 ---
 
