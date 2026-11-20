@@ -1,6 +1,7 @@
 # Hone ✨
 
 [![CI](https://github.com/dvd90/prompt-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/dvd90/prompt-forge/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **A native macOS app that turns rough prompts into great ones and runs AI text actions on any text you select, using the AI subscription you already pay for.**
 
@@ -10,7 +11,7 @@
 - 🔌 **Bring your own AI**: Claude, ChatGPT or Gemini **subscriptions** through their official CLIs, or an Anthropic / OpenAI-compatible **API key** (OpenAI, OpenRouter, Ollama, LM Studio…).
 - 🔒 **Private by design**: no backend, no telemetry. Keys live in the macOS Keychain, and text goes only to the provider you choose.
 
-Hone is open source, and improvements are welcome: bug reports, ideas, new actions, new providers, tests and fixes. See [Contributing](#contributing).
+Hone is open source under the [MIT License](LICENSE), and improvements are welcome: bug reports, ideas, new actions, new providers, tests and fixes. See [Contributing](#contributing).
 
 ---
 
@@ -28,6 +29,7 @@ Hone is open source, and improvements are welcome: bug reports, ideas, new actio
 - [Troubleshooting](#troubleshooting)
 - [Privacy & security](#privacy--security)
 - [Contributing](#contributing)
+- [License](#license)
 
 ---
 
@@ -335,6 +337,8 @@ Open an [issue](../../issues) with your macOS version, Hone version, provider, t
 2. Build and test. `swift build` should finish with zero warnings, and `swift test` should pass. Add tests for new logic. `PF_LIVE=1 swift test --filter LiveTests` makes real calls on your own Claude Code and Codex logins, and is only needed when you change providers or prompts.
 3. Keep the pull request focused on one change, and say what you tested and on which macOS version. CI runs the build and unit tests on every pull request.
 
+By contributing, you agree that your contributions are licensed under the [MIT License](LICENSE).
+
 ### Ground rules
 These keep Hone private, native and dependency-free:
 - No third-party packages, telemetry, or new network destinations without discussing it first.
@@ -348,6 +352,12 @@ These keep Hone private, native and dependency-free:
 
 ### Security
 For a security problem, please don't open a public issue. Report it privately through the repository's **Security** tab (**Report a vulnerability**).
+
+---
+
+## License
+
+Hone is released under the [MIT License](LICENSE).
 
 ---
 
