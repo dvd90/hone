@@ -211,7 +211,10 @@ final class AppState: ObservableObject {
 
     func deleteCustomAction(_ a: AIAction) {
         customActions.removeAll { $0.id == a.id }
-        if selectedActionID == a.id { selectedActionID = AIAction.improvePrompt.id }
+        if selectedActionID == a.id {
+            selectedActionID = AIAction.improvePrompt.id
+            clearOutput()   // its output would otherwise be shown as a prompt report
+        }
     }
 
     // MARK: History

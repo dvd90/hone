@@ -10,7 +10,6 @@ struct SettingsView: View {
             ShortcutSettingsView().tabItem { Label("Shortcut", systemImage: "keyboard") }
         }
         .frame(width: 600, height: 520)
-        .tint(Theme.accent)
     }
 }
 
@@ -33,6 +32,8 @@ struct ProviderSettingsView: View {
             } footer: {
                 Text("Subscriptions run through the official CLI you're already logged into. No API key needed, and usage counts against your plan.")
                     .font(.caption).foregroundStyle(Theme.muted)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             Section(state.providerSettings.kind.shortLabel) { details }
@@ -214,7 +215,6 @@ struct ActionEditor: View {
                 Button("Delete", role: .destructive, action: onDelete)
                 Spacer()
                 Button("Save") { onSave(action) }
-                    .capsuleButton(prominent: true)
                     .keyboardShortcut(.defaultAction)
                     .disabled(action.name.trimmingCharacters(in: .whitespaces).isEmpty ||
                               action.instruction.trimmingCharacters(in: .whitespaces).isEmpty)
@@ -241,6 +241,8 @@ struct ShortcutSettingsView: View {
             } footer: {
                 Text("Select text in any app, press the hotkey, pick an action, then Replace (⏎) or Copy.")
                     .font(.caption).foregroundStyle(Theme.muted)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             Section("Accessibility permission") {

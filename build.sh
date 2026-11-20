@@ -14,6 +14,11 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/PromptForge"
 cp Info.plist "$APP/Contents/Info.plist"
 [ -f AppIcon.icns ] && cp AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+# Accent color asset (needs full Xcode for actool; without it the app falls back to the system accent).
+if xcrun --find actool >/dev/null 2>&1; then
+  xcrun actool Assets.xcassets --compile "$APP/Contents/Resources" --platform macosx \
+    --minimum-deployment-target 14.0 --output-partial-info-plist "$(mktemp)" >/dev/null
+fi
 SIGN_ID="${SIGN_ID:-$(security find-identity -v -p codesigning | sed -n 's/.*"\(Developer ID Application: .*\)"$/\1/p' | head -1)}"
 SIGN_ID="${SIGN_ID:--}"
 if [ "$SIGN_ID" = "-" ]; then TIMESTAMP="--timestamp=none"; else TIMESTAMP="--timestamp"; fi

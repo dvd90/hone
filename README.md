@@ -201,7 +201,7 @@ Sources/PromptForge/
     ├── Views.swift             Main window
     ├── QuickPanel.swift        Floating non-activating panel
     ├── SettingsView.swift      Provider / Actions / Shortcut tabs
-    └── Theme.swift             Accent, corner radii, glass / card / capsule-button styles
+    └── Theme.swift             Muted text color, text-well style, Reduce Motion-aware animation
 ```
 
 **Data on disk**

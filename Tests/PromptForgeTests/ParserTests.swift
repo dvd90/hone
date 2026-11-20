@@ -52,6 +52,13 @@ final class ParserTests: XCTestCase {
         XCTAssertEqual(ActionEngine.displayText(action: proof, raw: "  the cat\n"), "the cat")
     }
 
+    func testFlowLayoutWraps() {
+        let chip = CGSize(width: 40, height: 10)
+        let r = FlowLayout.arrange([chip, chip, chip], width: 100, spacing: 5)
+        XCTAssertEqual(r.origins, [CGPoint(x: 0, y: 0), CGPoint(x: 45, y: 0), CGPoint(x: 0, y: 15)])
+        XCTAssertEqual(r.size, CGSize(width: 85, height: 25))
+    }
+
     func testBuiltInIDsUnique() {
         XCTAssertEqual(Set(AIAction.builtIns.map(\.id)).count, AIAction.builtIns.count)
     }

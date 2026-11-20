@@ -153,6 +153,7 @@ final class QuickPanelController: ObservableObject {
             p.standardWindowButton(.zoomButton)?.isHidden = true
             let host = NSHostingController(rootView: QuickPanelView(c: self).environmentObject(state))
             host.sizingOptions = [.preferredContentSize]
+            host.safeAreaRegions = []   // lay out under the transparent title bar; the header shares its row
             p.contentViewController = host
             panel = p
         }
@@ -180,15 +181,15 @@ struct QuickPanelView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            // Shares the title bar row with the close button instead of leaving an empty band above.
             HStack(spacing: 6) {
                 Image(systemName: "wand.and.stars").foregroundStyle(.tint)
                 Text("Hone").font(.headline)
                 Spacer()
-                Text(state.providerSettings.kind.shortLabel)
-                    .font(.caption).foregroundStyle(Theme.muted)
-                    .padding(.horizontal, 8).padding(.vertical, 3)
-                    .glass(in: Capsule())
+                Text(state.providerSettings.kind.shortLabel).font(.caption).foregroundStyle(Theme.muted)
             }
+            .padding(.leading, 18)
+            .frame(height: 20)
 
             Text(c.sourceText.isEmpty ? "No text found. Select text in any app (or copy it), then press the hotkey." : c.sourceText)
                 .lineLimit(c.phase == .choosing ? 4 : 2)
@@ -205,12 +206,11 @@ struct QuickPanelView: View {
                 resultView
             }
         }
-        .padding(14)
-        .padding(.top, 12)
+        .padding([.horizontal, .bottom], 14)
+        .padding(.top, 4)
         .frame(width: 560)
         .background(Button("") { c.close() }.keyboardShortcut(.cancelAction).opacity(0))
-        .animation(Theme.motion, value: c.phase)
-        .tint(Theme.accent)
+        .motion(c.phase)
     }
 
     private var chooser: some View {
@@ -227,7 +227,7 @@ struct QuickPanelView: View {
                         .padding(.vertical, 4)
                         .contentShape(Rectangle())
                     }
-                    .capsuleButton()
+                    .buttonStyle(.bordered)
                     .modifier(NumberShortcut(index: i))
                     .disabled(c.sourceText.isEmpty)
                 }
@@ -243,7 +243,7 @@ struct QuickPanelView: View {
                 if let a = c.action { Label(a.name, systemImage: a.icon).font(.subheadline.weight(.semibold)) }
                 if c.phase == .running { ProgressView().controlSize(.small) }
                 Spacer()
-                if let s = c.scoreLine { Text("Score \(s)").font(.caption.monospacedDigit()).foregroundStyle(Theme.muted) }
+                if let s = c.scoreLine { Text("Score \(s)").font(.callout.monospacedDigit()).foregroundStyle(Theme.muted) }
             }
 
             if case let .failed(msg) = c.phase {
@@ -266,27 +266,31 @@ struct QuickPanelView: View {
 
             HStack {
                 Button { c.back() } label: { Label("Actions", systemImage: "chevron.left") }
-                    .capsuleButton()
                     .keyboardShortcut(.leftArrow, modifiers: .command)
                 Button("Open in App") { c.openInApp() }
-                    .capsuleButton()
                     .disabled(c.phase != .done)
                 Spacer()
-                Button { c.copyOutput() } label: {
-                    Label(c.copied ? "Copied" : "Copy", systemImage: c.copied ? "checkmark" : "doc.on.doc")
-                        .contentTransition(.symbolEffect(.replace))
-                }
-                .capsuleButton()
-                .keyboardShortcut("c", modifiers: [.command, .shift])
-                .disabled(c.output.isEmpty)
+                // One primary action: Replace when it's available, otherwise Copy.
                 if c.canReplace {
+                    copyButton
                     Button { c.replace() } label: { Label("Replace", systemImage: "arrow.uturn.left") }
-                        .capsuleButton(prominent: true)
+                        .buttonStyle(.borderedProminent)
                         .keyboardShortcut(.defaultAction)
                         .disabled(c.phase != .done)
+                } else {
+                    copyButton.buttonStyle(.borderedProminent)
                 }
             }
         }
+    }
+
+    private var copyButton: some View {
+        Button { c.copyOutput() } label: {
+            Label(c.copied ? "Copied" : "Copy", systemImage: c.copied ? "checkmark" : "doc.on.doc")
+                .contentTransition(.symbolEffect(.replace))
+        }
+        .keyboardShortcut("c", modifiers: [.command, .shift])
+        .disabled(c.output.isEmpty)
     }
 }
 

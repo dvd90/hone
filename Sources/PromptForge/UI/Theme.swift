@@ -1,29 +1,18 @@
 import AppKit
 import SwiftUI
 
-/// Shared look: one accent, one corner scale, Liquid Glass on macOS 26+ with material fallbacks before.
-/// Standard chrome (toolbar, sidebar, segmented pickers, forms) picks up Liquid Glass from the SDK on its own.
+/// Shared look. The accent comes from the AccentColor asset (Info.plist NSAccentColorName), so buttons,
+/// selection and focus rings share one color and macOS still honors a user-chosen accent.
+/// Standard chrome (toolbar, sidebar, pickers, forms, buttons) gets Liquid Glass from the SDK on its own.
 enum Theme {
-    static let accent = Color.indigo
     /// Secondary text. A fixed opacity instead of `.secondary` keeps captions above WCAG AA
     /// (about 5.7:1 or better on light and dark surfaces; `.secondary` is about 4:1).
     static let muted = Color.primary.opacity(0.68)
-    static let cardRadius: CGFloat = 16
     static let fieldRadius: CGFloat = 12
-    static let motion = Animation.smooth(duration: 0.25)
+    static let motion = Animation.smooth(duration: 0.22)
 }
 
 extension View {
-    /// Frosted card for content sections. A material rather than Liquid Glass: Apple reserves glass for the
-    /// control layer, and long text stays more readable on a calmer surface.
-    func card(padding: CGFloat = 14) -> some View {
-        let shape = RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
-        return self.padding(padding)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.regularMaterial, in: shape)
-            .overlay(shape.strokeBorder(Color.primary.opacity(0.08)))
-    }
-
     /// Opaque text well (editors, results) so body text keeps full contrast.
     func field() -> some View {
         let shape = RoundedRectangle(cornerRadius: Theme.fieldRadius, style: .continuous)
@@ -31,22 +20,17 @@ extension View {
             .overlay(shape.strokeBorder(Color.primary.opacity(0.1)))
     }
 
-    /// Liquid Glass surface on macOS 26+, thick material before.
-    @ViewBuilder func glass(in shape: some Shape) -> some View {
-        if #available(macOS 26.0, *) {
-            self.glassEffect(.regular, in: shape)
-        } else {
-            self.background(.thickMaterial, in: shape)
-        }
+    /// Animates layout changes keyed on `value`, or not at all when Reduce Motion is on.
+    func motion<V: Equatable>(_ value: V) -> some View {
+        modifier(MotionModifier(value: value))
     }
+}
 
-    /// Floating capsule controls: Liquid Glass buttons on macOS 26+, bordered capsules before.
-    @ViewBuilder func capsuleButton(prominent: Bool = false) -> some View {
-        if #available(macOS 26.0, *) {
-            if prominent { self.buttonStyle(.glassProminent) } else { self.buttonStyle(.glass) }
-        } else {
-            if prominent { self.buttonStyle(.borderedProminent).buttonBorderShape(.capsule) }
-            else { self.buttonStyle(.bordered).buttonBorderShape(.capsule) }
-        }
+private struct MotionModifier<V: Equatable>: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let value: V
+
+    func body(content: Content) -> some View {
+        content.animation(reduceMotion ? nil : Theme.motion, value: value)
     }
 }
