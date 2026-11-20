@@ -103,7 +103,7 @@ struct OpenAICompatibleProvider: LLMProvider {
         req.timeoutInterval = 300
         req.setValue("application/json", forHTTPHeaderField: "content-type")
         if let apiKey, !apiKey.isEmpty { req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization") }
-        if base.contains("openrouter.ai") { req.setValue("Prompt Forge", forHTTPHeaderField: "X-Title") }
+        if base.contains("openrouter.ai") { req.setValue("Hone", forHTTPHeaderField: "X-Title") }
         let body: [String: Any] = [
             "model": model,
             "stream": true,

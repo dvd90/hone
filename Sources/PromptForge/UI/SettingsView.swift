@@ -242,7 +242,7 @@ struct ShortcutSettingsView: View {
                 HStack {
                     Image(systemName: trusted ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
                         .foregroundStyle(trusted ? .green : .orange)
-                    Text(trusted ? "Granted: Prompt Forge can read your selection and paste results back."
+                    Text(trusted ? "Granted: Hone can read your selection and paste results back."
                                  : "Needed to read the selected text and to paste results back (Replace). Without it, the hotkey uses your clipboard instead.")
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -255,7 +255,7 @@ struct ShortcutSettingsView: View {
             }
 
             Section("Also available") {
-                Text("Right-click selected text → Services → **Prompt Forge: Improve Prompt** or **Prompt Forge: Quick Actions**. You can give these their own shortcut in System Settings → Keyboard → Keyboard Shortcuts → Services.")
+                Text("Right-click selected text → Services → **Hone: Improve Prompt** or **Hone: Quick Actions**. You can give these their own shortcut in System Settings → Keyboard → Keyboard Shortcuts → Services.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

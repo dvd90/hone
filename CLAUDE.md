@@ -1,6 +1,8 @@
-# Prompt Forge
+# Hone
 
 Native macOS SwiftUI app (no third-party dependencies) that improves prompts and runs AI text actions on selected text. User docs, architecture diagram and release steps are in README.md.
+
+Formerly named Prompt Forge. The bundle ID, Swift module/target, Keychain service and data paths intentionally keep `PromptForge`: renaming them would orphan users' settings, keys and history.
 
 ## Verify every change
 1. `swift build`: must finish with zero warnings.

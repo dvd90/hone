@@ -1,4 +1,4 @@
-# Prompt Forge ✨
+# Hone ✨
 
 **A native macOS app that turns rough prompts into great ones and runs AI text actions on any text you select, using the AI subscription you already pay for.**
 
@@ -30,11 +30,11 @@
 **Requirements:** macOS 14 Sonoma or later (Apple silicon or Intel).
 
 ### Option A: DMG installer (recommended)
-1. Download `PromptForge-<version>.dmg` from the repo's **[Releases](../../releases)** page.
-2. Open it and drag **Prompt Forge** into **Applications**.
+1. Download `Hone-<version>.dmg` from the repo's **[Releases](../../releases)** page.
+2. Open it and drag **Hone** into **Applications**.
 3. The app is ad-hoc signed, not notarized, so macOS blocks the first launch. Clear that once:
    ```bash
-   xattr -dr com.apple.quarantine "/Applications/Prompt Forge.app"
+   xattr -dr com.apple.quarantine "/Applications/Hone.app"
    ```
    Or open it once, then go to **System Settings → Privacy & Security → Open Anyway**.
 
@@ -51,7 +51,7 @@ cd prompt-forge
 ## First-run setup
 
 1. **Pick a provider**: open **Settings (⌘,) → Provider**. The default is **Claude Code**, so if `claude` is installed and logged in, there's nothing to do. Click **Test connection** to confirm.
-2. **Grant Accessibility** (optional, recommended): **System Settings → Privacy & Security → Accessibility → Prompt Forge**. This lets the hotkey read your selection and paste results back. Without it, the hotkey works on your **clipboard** instead and Replace is hidden.
+2. **Grant Accessibility** (optional, recommended): **System Settings → Privacy & Security → Accessibility → Hone**. This lets the hotkey read your selection and paste results back. Without it, the hotkey works on your **clipboard** instead and Replace is hidden.
 3. **Choose a hotkey**: **Settings → Shortcut**: ⌃⌥Space (default), ⌥Space, ⇧⌘Space, ⌃⌥P or disabled.
 
 ---
@@ -88,7 +88,7 @@ For **Improve Prompt** you also get:
 Every run is saved to **History** in the sidebar. Click an entry to reopen it and keep refining; right-click to copy or delete.
 
 ### 3. Right-click Services
-Select text → right-click → **Services → Prompt Forge: Improve Prompt** or **Prompt Forge: Quick Actions**.
+Select text → right-click → **Services → Hone: Improve Prompt** or **Hone: Quick Actions**.
 You can bind these to keys in **System Settings → Keyboard → Keyboard Shortcuts → Services**.
 
 ### 4. Menu bar
@@ -106,13 +106,13 @@ The ✨ wand icon gives you quick actions on the selection or clipboard, opens t
 | **Anthropic API** | API key | ✅ | Paste a key from console.anthropic.com and pick a model |
 | **OpenAI-compatible** | API key (optional for local) | ✅ | Preset buttons for OpenAI, OpenRouter, Ollama and LM Studio; enter a model ID |
 
-**How subscription mode works:** Prompt Forge runs the official CLI in headless mode, so requests use your existing login and count against your plan. No tokens are copied or stored. Calls are isolated:
+**How subscription mode works:** Hone runs the official CLI in headless mode, so requests use your existing login and count against your plan. No tokens are copied or stored. Calls are isolated:
 
 - **Claude Code:** `claude -p --system-prompt … --tools "" --setting-sources "" --strict-mcp-config --disable-slash-commands --no-session-persistence`. No tools, no hooks, no MCP servers, no CLAUDE.md and no session files, so your personal Claude Code setup can't leak into results.
 - **Codex:** `codex exec --ephemeral -s read-only --skip-git-repo-check`.
 - **Gemini:** `gemini -p --approval-mode plan` (read-only).
 
-All CLIs run in an empty temp folder. GUI apps don't inherit your shell `PATH`, so Prompt Forge reads it once from a login shell. Settings shows where each CLI was found.
+All CLIs run in an empty temp folder. GUI apps don't inherit your shell `PATH`, so Hone reads it once from a login shell. Settings shows where each CLI was found.
 
 You can set a model for each provider; leave it blank to use the CLI's default (for Claude Code: `sonnet`, `opus`, `haiku` or a full model ID).
 
@@ -212,6 +212,8 @@ Sources/PromptForge/
 - Settings: `UserDefaults` (`com.dvd90.PromptForge`)
 - API keys: Keychain, service `com.dvd90.PromptForge`
 
+Hone shipped as Prompt Forge in 1.0. The bundle ID, Swift module, Keychain service and data paths keep the `PromptForge` name so existing settings, keys and history carry over.
+
 ---
 
 ## Extending
@@ -241,10 +243,10 @@ builtIn("bulletize", "Bullet Points", "list.dash",
 
 ```bash
 swift build                               # debug build
-./build.sh                                # → build/Prompt Forge.app (release, ad-hoc signed)
+./build.sh                                # → build/Hone.app (release, ad-hoc signed)
 ./build.sh --install                      # … and copy to /Applications
 ./install.sh                              # quit running copy, install, register Services, launch
-scripts/make_dmg.sh                       # → build/PromptForge-<version>.dmg
+scripts/make_dmg.sh                       # → build/Hone-<version>.dmg
 swift scripts/make_icon.swift && iconutil -c icns AppIcon.iconset   # regenerate the icon
 
 swift test                                # unit tests (parser, actions, CLI flattening)
@@ -255,7 +257,7 @@ PF_LIVE=1 swift test --filter LiveTests   # real calls via your claude + codex l
 ```bash
 /usr/libexec/PlistBuddy -c "Set CFBundleShortVersionString 1.1.0" Info.plist
 scripts/make_dmg.sh
-gh release create v1.1.0 build/PromptForge-1.1.0.dmg --title "v1.1.0" --notes "…"
+gh release create v1.1.0 build/Hone-1.1.0.dmg --title "v1.1.0" --notes "…"
 ```
 
 ---
@@ -264,7 +266,7 @@ gh release create v1.1.0 build/PromptForge-1.1.0.dmg --title "v1.1.0" --notes "�
 
 | Symptom | Fix |
 |---|---|
-| "Prompt Forge can't be opened" | `xattr -dr com.apple.quarantine "/Applications/Prompt Forge.app"` |
+| "Hone can't be opened" | `xattr -dr com.apple.quarantine "/Applications/Hone.app"` |
 | Hotkey does nothing | Another app may own the combo. Pick another in Settings → Shortcut |
 | Hotkey uses the clipboard instead of the selection; no Replace button | Grant Accessibility. **After every rebuild** of an ad-hoc-signed app, remove and re-add it in the Accessibility list |
 | "Couldn't find the `claude` command" | Settings → Provider shows where it looked. Install the CLI, or make sure it's on your login-shell `PATH` |

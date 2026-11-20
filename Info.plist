@@ -2,8 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key><string>Prompt Forge</string>
-    <key>CFBundleDisplayName</key><string>Prompt Forge</string>
+    <key>CFBundleName</key><string>Hone</string>
+    <key>CFBundleDisplayName</key><string>Hone</string>
     <key>CFBundleIdentifier</key><string>com.dvd90.PromptForge</string>
     <key>CFBundleExecutable</key><string>PromptForge</string>
     <key>CFBundlePackageType</key><string>APPL</string>
@@ -16,16 +16,16 @@
     <key>NSServices</key>
     <array>
         <dict>
-            <key>NSMenuItem</key><dict><key>default</key><string>Prompt Forge: Improve Prompt</string></dict>
+            <key>NSMenuItem</key><dict><key>default</key><string>Hone: Improve Prompt</string></dict>
             <key>NSMessage</key><string>improvePrompt</string>
-            <key>NSPortName</key><string>Prompt Forge</string>
+            <key>NSPortName</key><string>Hone</string>
             <key>NSSendTypes</key><array><string>NSStringPboardType</string><string>public.utf8-plain-text</string></array>
             <key>NSRequiredContext</key><dict/>
         </dict>
         <dict>
-            <key>NSMenuItem</key><dict><key>default</key><string>Prompt Forge: Quick Actions</string></dict>
+            <key>NSMenuItem</key><dict><key>default</key><string>Hone: Quick Actions</string></dict>
             <key>NSMessage</key><string>quickActions</string>
-            <key>NSPortName</key><string>Prompt Forge</string>
+            <key>NSPortName</key><string>Hone</string>
             <key>NSSendTypes</key><array><string>NSStringPboardType</string><string>public.utf8-plain-text</string></array>
             <key>NSRequiredContext</key><dict/>
         </dict>

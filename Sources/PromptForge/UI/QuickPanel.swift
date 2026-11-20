@@ -182,7 +182,7 @@ struct QuickPanelView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
                 Image(systemName: "wand.and.stars").foregroundStyle(.tint)
-                Text("Prompt Forge").font(.headline)
+                Text("Hone").font(.headline)
                 Spacer()
                 Text(state.providerSettings.kind.shortLabel)
                     .font(.caption).foregroundStyle(.secondary)

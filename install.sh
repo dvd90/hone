@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build Prompt Forge from source and install it to /Applications.
+# Build Hone from source and install it to /Applications.
 # Usage: ./install.sh
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -18,9 +18,9 @@ sleep 1
 # Register the right-click Services entries.
 /System/Library/CoreServices/pbs -update >/dev/null 2>&1 || true
 
-open "/Applications/Prompt Forge.app"
+open "/Applications/Hone.app"
 echo
-echo "✅ Prompt Forge installed and launched."
+echo "✅ Hone installed and launched."
 echo "   • Settings (⌘,) → Provider: pick Claude Code, Codex, Gemini CLI or an API key."
 echo "   • Select text anywhere and press ⌃⌥Space."
 echo "   • Allow it under System Settings → Privacy & Security → Accessibility to use Replace."

@@ -24,7 +24,7 @@ struct PromptForgeApp: App {
     @ObservedObject private var state = AppState.shared
 
     var body: some Scene {
-        Window("Prompt Forge", id: "main") {
+        Window("Hone", id: "main") {
             ContentView()
                 .environmentObject(state)
                 .frame(minWidth: 1000, minHeight: 640)
@@ -80,9 +80,9 @@ struct MenuBarContent: View {
         Button("Quick Actions on Clipboard") { state.quickActionsOnClipboard() }
         Divider()
         Text("Provider: \(state.providerSettings.kind.shortLabel)")
-        Button("Open Prompt Forge") { state.showMainWindow() }
+        Button("Open Hone") { state.showMainWindow() }
         SettingsLink { Text("Settings…") }
         Divider()
-        Button("Quit Prompt Forge") { NSApp.terminate(nil) }
+        Button("Quit Hone") { NSApp.terminate(nil) }
     }
 }

@@ -143,7 +143,7 @@ enum SelectionBridge {
     }
 }
 
-// MARK: - macOS Services menu (right-click → Services → Prompt Forge…; no permission needed)
+// MARK: - macOS Services menu (right-click → Services → Hone…; no permission needed)
 
 final class ServiceProvider: NSObject {
     var onText: ((_ text: String, _ actionID: String?) -> Void)?
