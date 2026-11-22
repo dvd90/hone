@@ -9,7 +9,7 @@ Formerly named Prompt Forge. The bundle ID, Swift module/target, Keychain servic
 2. `scripts/coverage.sh`: runs every unit test and fails below 95% line coverage on logic code. Views and OS glue are excluded by name in the script (`UI/Views.swift`, `UI/QuickPanel.swift`, `UI/SettingsView.swift`, `UI/Theme.swift`, `PromptForgeApp.swift`, `System/SystemIntegration.swift`, `Providers/Keychain.swift`, `AppState+System.swift`). New logic goes in a non-excluded file with tests; put pure helpers outside the excluded files so they count.
 3. `PF_LIVE=1 swift test --filter LiveTests`: only when touching providers or prompts. These are real calls on the owner's subscription, so keep inputs tiny.
 4. CI (`.github/workflows/ci.yml`, check name "Build, tests and coverage") runs steps 1–2 on macOS. It is required to merge into `main`, along with a pull request and 1 approval; nobody pushes to `main` directly. Keep the job name in sync with the ruleset.
-5. `./install.sh`: rebuilds, installs to /Applications and relaunches. `build.sh` signs with the Developer ID Application certificate when installed (Accessibility then survives rebuilds) and falls back to ad-hoc (Accessibility must be re-granted after each rebuild).
+5. `./install.sh`: rebuilds, installs to /Applications and relaunches. `build.sh` signs with the Developer ID Application certificate when installed; `--install` falls back to an Apple Development certificate. Either keeps the Accessibility grant across rebuilds. Ad-hoc is the last resort, and Accessibility must then be re-granted after each rebuild.
 
 Releases: `scripts/make_dmg.sh` signs, notarizes (keychain profile `hone-notary`) and staples the DMG. Never run it, tag or publish a release unless asked: notarization uploads the build to Apple.
 
