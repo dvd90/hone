@@ -3,8 +3,9 @@ import XCTest
 
 /// Real calls through the installed CLIs. Run with: PF_LIVE=1 swift test --filter LiveTests
 final class LiveTests: XCTestCase {
-    private func collect(_ provider: LLMProvider, _ action: AIAction, _ text: String) async throws -> String {
-        let msg = ActionEngine.firstMessage(action: action, text: text, options: PromptOptions())
+    private func collect(_ provider: LLMProvider, _ action: AIAction, _ text: String,
+                         options: PromptOptions = PromptOptions()) async throws -> String {
+        let msg = ActionEngine.firstMessage(action: action, text: text, options: options)
         var raw = ""
         for try await c in provider.stream(system: ActionEngine.system(for: action), messages: [msg], maxTokens: 4000) { raw += c }
         return raw
@@ -21,6 +22,22 @@ final class LiveTests: XCTestCase {
         XCTAssertFalse(r.improvedPrompt.isEmpty)
         XCTAssertNotNil(r.scoreBefore)
         XCTAssertNotNil(r.scoreAfter)
+    }
+
+    /// The owner's real complaint: a short draft came back as a template full of {{PLACEHOLDERS}}.
+    /// With a profile as context, the prompt should be specific, blank-free, and list what it assumed.
+    func testClaudeCodeImproveWithContext() async throws {
+        var options = PromptOptions()
+        options.target = .codingAgent
+        options.context = PromptContext(profile: ContextProfile(name: "Hone", text: "Main project: Hone, a macOS SwiftUI app built with SwiftPM."))
+        let raw = try await collect(CLIProvider(tool: .claude, model: ""), .improvePrompt, "i want to create tests to my main project", options: options)
+        let r = ForgeResult.parse(raw)
+        print("CLAUDE CONTEXT assumptions:", r.assumptions, "\n", r.improvedPrompt.prefix(500))
+        XCTAssertFalse(r.improvedPrompt.isEmpty)
+        XCTAssertFalse(r.improvedPrompt.contains("{{"), "no placeholders at Standard depth")
+        XCTAssertFalse(r.assumptions.isEmpty, "the test framework isn't named, so something must be assumed")
+        XCTAssertTrue(r.questions.isEmpty)
+        XCTAssertTrue(r.improvedPrompt.localizedCaseInsensitiveContains("Swift"), "the profile's stack is used")
     }
 
     func testClaudeCodeProofread() async throws {

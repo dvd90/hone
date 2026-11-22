@@ -70,7 +70,7 @@ struct PromptOptions {
     var target: TargetModel = .claude
     var depth: Depth = .standard
     var techniques: Set<Technique> = []
-    var goal: String = ""
+    var context = PromptContext()
 }
 
 /// Turns an action + text into a provider request, and a raw reply into display text.
@@ -93,7 +93,7 @@ enum ActionEngine {
         switch action.kind {
         case .promptEngineer:
             return ChatMessage(role: "user", content: MetaPrompt.userMessage(
-                draft: text, goal: options.goal, target: options.target, depth: options.depth, techniques: options.techniques))
+                draft: text, context: options.context, target: options.target, depth: options.depth, techniques: options.techniques))
         case .transform:
             return ChatMessage(role: "user", content: "<instruction>\n\(action.instruction)\n</instruction>\n\n<text>\n\(text)\n</text>")
         }

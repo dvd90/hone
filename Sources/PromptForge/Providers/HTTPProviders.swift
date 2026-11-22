@@ -2,11 +2,12 @@ import Foundation
 
 /// Server-sent-events helper shared by the HTTP providers.
 enum SSE {
-    static func stream(_ request: URLRequest, extract: @escaping ([String: Any]) throws -> String?) -> AsyncThrowingStream<String, Error> {
+    static func stream(_ request: URLRequest, session: URLSession = .shared,
+                       extract: @escaping ([String: Any]) throws -> String?) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let (bytes, response) = try await URLSession.shared.bytes(for: request)
+                    let (bytes, response) = try await session.bytes(for: request)
                     guard let http = response as? HTTPURLResponse else { throw ForgeError.network("No response from server.") }
                     guard (200..<300).contains(http.statusCode) else {
                         var data = Data()
@@ -47,8 +48,14 @@ enum SSE {
 struct AnthropicProvider: LLMProvider {
     let apiKey: String
     let model: String
+    var session: URLSession = .shared
 
     func stream(system: String, messages: [ChatMessage], maxTokens: Int) -> AsyncThrowingStream<String, Error> {
+        SSE.stream(Self.request(apiKey: apiKey, model: model, system: system, messages: messages, maxTokens: maxTokens),
+                   session: session, extract: Self.extract)
+    }
+
+    static func request(apiKey: String, model: String, system: String, messages: [ChatMessage], maxTokens: Int) -> URLRequest {
         var req = URLRequest(url: URL(string: "https://api.anthropic.com/v1/messages")!)
         req.httpMethod = "POST"
         req.timeoutInterval = 300
@@ -63,18 +70,19 @@ struct AnthropicProvider: LLMProvider {
             "messages": messages.map { ["role": $0.role, "content": $0.content] },
         ]
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        return req
+    }
 
-        return SSE.stream(req) { obj in
-            switch obj["type"] as? String {
-            case "content_block_delta":
-                let delta = obj["delta"] as? [String: Any]
-                return delta?["type"] as? String == "text_delta" ? delta?["text"] as? String : nil
-            case "error":
-                let err = obj["error"] as? [String: Any]
-                throw ForgeError.api(0, err?["message"] as? String ?? "Stream error")
-            default:
-                return nil
-            }
+    static func extract(_ obj: [String: Any]) throws -> String? {
+        switch obj["type"] as? String {
+        case "content_block_delta":
+            let delta = obj["delta"] as? [String: Any]
+            return delta?["type"] as? String == "text_delta" ? delta?["text"] as? String : nil
+        case "error":
+            let err = obj["error"] as? [String: Any]
+            throw ForgeError.api(0, err?["message"] as? String ?? "Stream error")
+        default:
+            return nil
         }
     }
 }
@@ -84,6 +92,7 @@ struct OpenAICompatibleProvider: LLMProvider {
     let baseURL: String
     let apiKey: String?
     let model: String
+    var session: URLSession = .shared
 
     static let presets: [(name: String, url: String)] = [
         ("OpenAI", "https://api.openai.com/v1"),
@@ -93,11 +102,19 @@ struct OpenAICompatibleProvider: LLMProvider {
     ]
 
     func stream(system: String, messages: [ChatMessage], maxTokens: Int) -> AsyncThrowingStream<String, Error> {
+        guard let req = Self.request(baseURL: baseURL, apiKey: apiKey, model: model, system: system, messages: messages) else {
+            return SSE.failed(ForgeError.config("Invalid base URL: \(baseURL). Use a full http(s) address, e.g. https://api.openai.com/v1"))
+        }
+        return SSE.stream(req, session: session, extract: Self.extract)
+    }
+
+    /// Nil when the base URL isn't an http(s) address with a host.
+    static func request(baseURL: String, apiKey: String?, model: String, system: String, messages: [ChatMessage]) -> URLRequest? {
         var base = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
         while base.hasSuffix("/") { base.removeLast() }
-        guard let url = URL(string: base + "/chat/completions") else {
-            return SSE.failed(ForgeError.config("Invalid base URL: \(baseURL)"))
-        }
+        guard let url = URL(string: base + "/chat/completions"),
+              let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+              url.host?.isEmpty == false else { return nil }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.timeoutInterval = 300
@@ -110,14 +127,15 @@ struct OpenAICompatibleProvider: LLMProvider {
             "messages": [["role": "system", "content": system]] + messages.map { ["role": $0.role, "content": $0.content] },
         ]
         req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        return req
+    }
 
-        return SSE.stream(req) { obj in
-            if let err = obj["error"] as? [String: Any] {
-                throw ForgeError.api(0, err["message"] as? String ?? "Stream error")
-            }
-            guard let choices = obj["choices"] as? [[String: Any]],
-                  let delta = choices.first?["delta"] as? [String: Any] else { return nil }
-            return delta["content"] as? String
+    static func extract(_ obj: [String: Any]) throws -> String? {
+        if let err = obj["error"] as? [String: Any] {
+            throw ForgeError.api(0, err["message"] as? String ?? "Stream error")
         }
+        guard let choices = obj["choices"] as? [[String: Any]],
+              let delta = choices.first?["delta"] as? [String: Any] else { return nil }
+        return delta["content"] as? String
     }
 }

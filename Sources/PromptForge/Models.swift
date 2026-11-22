@@ -38,11 +38,11 @@ enum Depth: String, CaseIterable, Identifiable, Codable {
     var guidance: String {
         switch self {
         case .light:
-            return "Light touch: make minimal, high-leverage edits. Keep the author's wording and roughly the same length; fix ambiguity, missing context and missing output format only."
+            return "Light touch: make minimal, high-leverage edits. Keep the author's wording and roughly the same length; fix ambiguity, missing context and missing output format only, filling gaps from the context or a short stated assumption."
         case .standard:
-            return "Standard: restructure as needed for clarity and effectiveness, but keep it as short as the task allows."
+            return "Standard: restructure as needed for clarity and effectiveness, but keep it as short as the task allows. The result is used as-is, once."
         case .thorough:
-            return "Production-grade: a reusable prompt suitable as a system prompt — role, context, detailed instructions, edge cases, output format, and examples where useful. Use {{VARIABLES}} for inputs that change between uses."
+            return "Production-grade: a reusable prompt suitable as a system prompt — role, context, detailed instructions, edge cases, output format, and examples where useful. Use {{VARIABLES}} only for inputs that change between uses; facts about the author's situation come from the context or listed assumptions."
         }
     }
 }
@@ -112,7 +112,12 @@ struct ForgeResult: Codable, Equatable {
     var diagnosis: [String] = []
     var improvedPrompt: String = ""
     var changes: [String] = []
+    /// Questions from replies made before Improve Prompt switched to listing assumptions (old history items).
     var questions: [String] = []
+    var assumptions: [String] = []
+
+    /// What the author can respond to: assumptions to correct, or questions on old history items.
+    var followUps: [String] { assumptions.isEmpty ? questions : assumptions }
 
     static let empty = ForgeResult()
 
@@ -137,6 +142,8 @@ struct ForgeResult: Codable, Equatable {
         r.diagnosis = bullets(extract("diagnosis", in: head))
         r.changes = bullets(extract("changes", in: tail))
         r.questions = bullets(extract("questions", in: tail))
+        // After the prompt normally; before it if the model moved the section. Never from inside the prompt.
+        r.assumptions = bullets(extract("assumptions", in: tail) ?? extract("assumptions", in: head))
         r.scoreAfter = score(extract("score_after", in: tail))
         return r
     }
@@ -247,9 +254,9 @@ enum HistoryStore {
         }
     }
 
-    static func save(_ items: [HistoryItem]) {
+    static func save(_ items: [HistoryItem], to file: URL = HistoryStore.url) {
         let enc = JSONEncoder()
         enc.dateEncodingStrategy = .iso8601
-        if let data = try? enc.encode(items) { try? data.write(to: url, options: .atomic) }
+        if let data = try? enc.encode(items) { try? data.write(to: file, options: .atomic) }
     }
 }

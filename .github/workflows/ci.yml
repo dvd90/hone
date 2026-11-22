@@ -1,24 +1,25 @@
 name: CI
 
+# Required to merge into main (repository ruleset). Runs on every pull request, with no path
+# filters: a required check that gets skipped never reports, which would block the pull request.
 on:
   pull_request:
-    paths-ignore: ["**.md"]
   push:
     branches: [main]
-    paths-ignore: ["**.md"]
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# A newer push to the same branch cancels the run in progress (saves macOS minutes).
+# A newer push to the same branch cancels the run in progress.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   test:
-    name: Build and unit tests
+    # This name is the required status check; keep it in sync with the main-branch ruleset.
+    name: Build, tests and coverage
     runs-on: macos-latest
     timeout-minutes: 20
     steps:
@@ -30,6 +31,7 @@ jobs:
       - name: Build (app and tests)
         run: swift build --build-tests
 
-      # LiveTests skip themselves without PF_LIVE=1, so no provider calls or secrets run here.
-      - name: Unit tests
-        run: swift test --skip-build
+      # Runs every unit test and fails below 95% line coverage on logic code (views and OS glue excluded;
+      # see the list in the script). LiveTests skip themselves without PF_LIVE=1, so no provider calls run here.
+      - name: Unit tests and coverage gate
+        run: scripts/coverage.sh

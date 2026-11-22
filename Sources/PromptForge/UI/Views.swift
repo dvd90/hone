@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     @EnvironmentObject var state: AppState
@@ -80,6 +81,7 @@ struct HistorySidebar: View {
 
 struct InputPane: View {
     @EnvironmentObject var state: AppState
+    @State private var choosingFiles = false
 
     private var isPrompt: Bool { state.selectedAction.kind == .promptEngineer }
 
@@ -165,17 +167,7 @@ struct InputPane: View {
 
     private var promptOptions: some View {
         VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text("Goal").foregroundStyle(Theme.muted)
-                    Spacer()
-                    Text("Optional").font(.caption).foregroundStyle(Theme.muted)
-                }
-                TextField("Goal", text: $state.goal, prompt: Text(""), axis: .vertical)
-                    .lineLimit(1...4)
-                    .textFieldStyle(.roundedBorder)
-                    .placeholder("Who it's for, what good looks like", when: state.goal.isEmpty)
-            }
+            contextSection
             OptionRow(label: "Target") {
                 Picker("Target", selection: $state.target) {
                     ForEach(TargetModel.allCases) { Text($0.rawValue).tag($0) }
@@ -218,6 +210,80 @@ struct InputPane: View {
     }
 }
 
+extension InputPane {
+    /// Profile, per-run notes, attached files and the source app: what Improve Prompt knows about the situation.
+    var contextSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Text("Context").foregroundStyle(Theme.muted)
+                Spacer(minLength: 12)
+                if state.contextProfiles.isEmpty {
+                    SettingsLink { Text("Add profile…") }
+                        .buttonStyle(.link).controlSize(.small)
+                        .help("Save reusable notes about you or a project in Settings → Context")
+                } else {
+                    Picker("Context profile", selection: $state.contextProfileID) {
+                        Text("No profile").tag(UUID?.none)
+                        ForEach(state.contextProfiles) { Text($0.name).tag(Optional($0.id)) }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: 170)
+                    .help("Saved notes about you or a project, sent with every Improve Prompt run")
+                }
+                Button { choosingFiles = true } label: { Image(systemName: "paperclip") }
+                    .help("Attach text files (or drop them here)")
+                    .accessibilityLabel("Attach files")
+            }
+            TextField("Context", text: $state.notes, prompt: Text(""), axis: .vertical)
+                .lineLimit(1...6)
+                .textFieldStyle(.roundedBorder)
+                .placeholder("Project, audience, constraints, examples…", when: state.notes.isEmpty)
+                .accessibilityHint("Facts about your situation for this run: project, audience, constraints, examples")
+            if !state.sourceApp.isEmpty || !state.attachments.isEmpty {
+                FlowLayout(spacing: 6) {
+                    if !state.sourceApp.isEmpty {
+                        ContextChip(title: state.sourceApp, icon: "macwindow") { state.sourceApp = "" }
+                    }
+                    ForEach(state.attachments) { file in
+                        ContextChip(title: file.name, icon: "doc.text") { state.removeAttachment(file) }
+                    }
+                }
+            }
+        }
+        .fileImporter(isPresented: $choosingFiles, allowedContentTypes: [.data], allowsMultipleSelection: true) { result in
+            if case .success(let urls) = result { state.attach(urls) }
+        }
+        .dropDestination(for: URL.self) { urls, _ in
+            state.attach(urls.filter(\.isFileURL))
+            return true
+        }
+    }
+}
+
+/// A removable context item: a file or the app the user came from.
+struct ContextChip: View {
+    let title: String
+    let icon: String
+    let onRemove: () -> Void
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon).foregroundStyle(Theme.muted)
+            Text(title).lineLimit(1).truncationMode(.middle)
+            Button(action: onRemove) { Image(systemName: "xmark.circle.fill") }
+                .buttonStyle(.borderless)
+                .foregroundStyle(Theme.muted)
+                .accessibilityLabel("Remove \(title)")
+        }
+        .font(.caption)
+        .padding(.horizontal, 8).padding(.vertical, 3)
+        .frame(maxWidth: 280, alignment: .leading)
+        .background(Theme.fieldFill, in: Capsule())
+        .overlay(Capsule().strokeBorder(Theme.hairline))
+        .help(title)
+    }
+}
+
 /// Lays children out left to right and wraps like text (used for the technique chips).
 struct FlowLayout: Layout {
     var spacing: CGFloat = 6
@@ -233,18 +299,6 @@ struct FlowLayout: Layout {
         }
     }
 
-    static func arrange(_ sizes: [CGSize], width: CGFloat, spacing: CGFloat) -> (origins: [CGPoint], size: CGSize) {
-        var origins: [CGPoint] = []
-        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0, maxX: CGFloat = 0
-        for s in sizes {
-            if x > 0 && x + s.width > width { x = 0; y += rowHeight + spacing; rowHeight = 0 }
-            origins.append(CGPoint(x: x, y: y))
-            maxX = max(maxX, x + s.width)
-            x += s.width + spacing
-            rowHeight = max(rowHeight, s.height)
-        }
-        return (origins, CGSize(width: maxX, height: y + rowHeight))
-    }
 }
 
 // MARK: - Output
@@ -285,7 +339,7 @@ struct OutputPane: View {
     /// Changes only when a section appears or disappears, so streamed text isn't animated chunk by chunk.
     private var layoutKey: [Bool] {
         let r = state.result ?? .empty
-        return [state.isRunning, state.errorMessage == nil, r.diagnosis.isEmpty, r.changes.isEmpty, r.questions.isEmpty]
+        return [state.isRunning, state.errorMessage == nil, r.diagnosis.isEmpty, r.changes.isEmpty, r.followUps.isEmpty]
     }
 }
 
@@ -315,9 +369,9 @@ struct PromptReport: View {
         ScoreMeter(before: r.scoreBefore, after: r.scoreAfter, isRunning: state.isRunning)
         SectionRule()
         OutputBlock(title: "Improved prompt", text: r.improvedPrompt, monospaced: true)
-        if !r.questions.isEmpty && !state.isRunning {
+        if !r.followUps.isEmpty && !state.isRunning {
             SectionRule()
-            QuestionsSection(questions: r.questions)
+            QuestionsSection(r: r)
         }
         if !r.diagnosis.isEmpty {
             SectionRule()
@@ -402,24 +456,33 @@ struct BulletSection: View {
     }
 }
 
+/// Assumptions the model made, each correctable (or questions on history items from before assumptions).
 struct QuestionsSection: View {
     @EnvironmentObject var state: AppState
-    let questions: [String]
+    let r: ForgeResult
+
+    private var correcting: Bool { !r.assumptions.isEmpty }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Questions that would sharpen it").font(.headline)
-            ForEach(questions, id: \.self) { q in
+            Text(correcting ? "Assumptions" : "Questions that would sharpen it").font(.headline)
+            if correcting {
+                Text("The prompt above assumes these. Correct any that are wrong and re-run.")
+                    .font(.callout).foregroundStyle(Theme.muted)
+            }
+            ForEach(r.followUps, id: \.self) { q in
                 VStack(alignment: .leading, spacing: 6) {
                     Text(q).fixedSize(horizontal: false, vertical: true)
-                    TextField("Answer", text: Binding(
+                    TextField(correcting ? "Correction" : "Answer", text: Binding(
                         get: { state.answers[q, default: ""] },
                         set: { state.answers[q] = $0 }), prompt: Text(""))
                         .textFieldStyle(.roundedBorder)
-                        .placeholder("Your answer (optional)", when: state.answers[q, default: ""].isEmpty)
+                        .placeholder(correcting ? "Correction (optional)" : "Your answer (optional)",
+                                     when: state.answers[q, default: ""].isEmpty)
+                        .accessibilityLabel(correcting ? "Correction for: \(q)" : "Answer to: \(q)")
                 }
             }
-            Button("Re-run with answers") { state.submitAnswers() }
+            Button(correcting ? "Re-run with corrections" : "Re-run with answers") { state.submitAnswers() }
                 .disabled(state.answers.values.allSatisfy { $0.trimmingCharacters(in: .whitespaces).isEmpty })
         }
     }

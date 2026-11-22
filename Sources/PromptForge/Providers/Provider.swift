@@ -1,5 +1,4 @@
 import Foundation
-import Security
 
 /// Anything that can turn (system, messages) into a stream of text.
 /// Add a new backend by conforming to this protocol and adding a case to `ProviderKind`.
@@ -68,14 +67,14 @@ struct ProviderSettings: Codable, Equatable {
 
     private static let key = "providerSettings.v1"
 
-    static func load() -> ProviderSettings {
-        guard let d = UserDefaults.standard.data(forKey: key),
+    static func load(from defaults: UserDefaults = .standard) -> ProviderSettings {
+        guard let d = defaults.data(forKey: key),
               let s = try? JSONDecoder().decode(ProviderSettings.self, from: d) else { return ProviderSettings() }
         return s
     }
 
-    func save() {
-        if let d = try? JSONEncoder().encode(self) { UserDefaults.standard.set(d, forKey: Self.key) }
+    func save(to defaults: UserDefaults = .standard) {
+        if let d = try? JSONEncoder().encode(self) { defaults.set(d, forKey: Self.key) }
     }
 }
 
@@ -95,7 +94,8 @@ extension ProviderSettings {
 }
 
 enum ProviderFactory {
-    static func make(_ s: ProviderSettings) throws -> LLMProvider {
+    /// `key` reads API keys; tests pass a stub so they never touch the real Keychain.
+    static func make(_ s: ProviderSettings, key: (Keychain.Account) -> String? = Keychain.load) throws -> LLMProvider {
         switch s.kind {
         case .claudeCode:
             return CLIProvider(tool: .claude, model: s.claudeCodeModel)
@@ -104,48 +104,15 @@ enum ProviderFactory {
         case .geminiCLI:
             return CLIProvider(tool: .gemini, model: s.geminiModel)
         case .anthropic:
-            guard let key = Keychain.load(.anthropic), !key.isEmpty else {
+            guard let apiKey = key(.anthropic), !apiKey.isEmpty else {
                 throw ForgeError.config("Add your Anthropic API key in Settings → Provider.")
             }
-            return AnthropicProvider(apiKey: key, model: s.anthropicModel)
+            return AnthropicProvider(apiKey: apiKey, model: s.anthropicModel)
         case .openAICompatible:
             guard !s.openAIModel.trimmingCharacters(in: .whitespaces).isEmpty else {
                 throw ForgeError.config("Set a model ID for the OpenAI-compatible provider in Settings → Provider.")
             }
-            return OpenAICompatibleProvider(baseURL: s.openAIBaseURL, apiKey: Keychain.load(.openAI), model: s.openAIModel)
+            return OpenAICompatibleProvider(baseURL: s.openAIBaseURL, apiKey: key(.openAI), model: s.openAIModel)
         }
-    }
-}
-
-enum Keychain {
-    enum Account: String {
-        case anthropic = "anthropic-api-key"
-        case openAI = "openai-compatible-api-key"
-    }
-
-    private static let service = "com.dvd90.PromptForge"
-
-    private static func base(_ a: Account) -> [String: Any] {
-        [kSecClass as String: kSecClassGenericPassword,
-         kSecAttrService as String: service,
-         kSecAttrAccount as String: a.rawValue]
-    }
-
-    static func save(_ value: String, for a: Account) {
-        SecItemDelete(base(a) as CFDictionary)
-        let v = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !v.isEmpty else { return }
-        var item = base(a)
-        item[kSecValueData as String] = Data(v.utf8)
-        SecItemAdd(item as CFDictionary, nil)
-    }
-
-    static func load(_ a: Account) -> String? {
-        var q = base(a)
-        q[kSecReturnData as String] = true
-        q[kSecMatchLimit as String] = kSecMatchLimitOne
-        var out: AnyObject?
-        guard SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess, let d = out as? Data else { return nil }
-        return String(data: d, encoding: .utf8)
     }
 }
