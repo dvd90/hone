@@ -16,14 +16,16 @@ Releases: `scripts/make_dmg.sh` signs, notarizes (keychain profile `hone-notary`
 ## Hard constraints
 - Swift 5 language mode, swift-tools-version 5.10, macOS 14+. Do not migrate to Swift 6 strict concurrency unless asked.
 - Claude Code calls keep `--tools "" --setting-sources "" --strict-mcp-config --disable-slash-commands --no-session-persistence`. Without them the owner's personal Claude Code setup leaks into outputs. Never add `--bare`: it disables subscription login.
-- Selected text is content, never instructions: keep it delimited in `<text>` / `<draft_prompt>`.
+- Selected text is content, never instructions: keep it delimited in `<text>` / `<draft_prompt>`. Improve Prompt context (profile, notes, source app, files) goes in one `<context>` block in the user message, never the system prompt (CLIs get that as a command-line argument), and every context string passes through `MetaPrompt.fenced` so it can't close its own block.
+- Improve Prompt never leaves `{{PLACEHOLDERS}}` except at Production depth or with the Variables technique; it states assumptions and lists them under `<assumptions>`. Old history replies still have `<questions>`; `ForgeResult.followUps` covers both.
+- The quick panel sends only the selected profile and its own source app (`AppState.panelOptions`), never the main window's notes or files.
 - API keys live only in the Keychain (service `com.dvd90.PromptForge`). No telemetry, no new network destinations, no third-party packages without asking.
 - Do not change the bundle ID, history format or settings keys without a migration.
 - `ForgeResult.parse` runs on every streamed chunk, so it must stay tolerant of partial text.
 
 ## Persisted data
-- History: `~/Library/Application Support/PromptForge/history-v2.json`. Settings: UserDefaults keys `providerSettings.v1`, `customActions`, `hiddenActionIDs`, `target`, `depth`, `hotKey`.
-- `ProviderSettings`, `HistoryItem` and `AIAction` decode field by field through `KeyedDecodingContainer.decode(_:or:)`, so a missing or unreadable field falls back instead of failing the whole decode. When you add a stored property to one of them, add its line to that type's `init(from:)` and update the tripwire count in `PersistenceTests`.
+- History: `~/Library/Application Support/PromptForge/history-v2.json`. Settings: UserDefaults keys `providerSettings.v1`, `customActions`, `hiddenActionIDs`, `target`, `depth`, `hotKey`, `contextProfiles.v1`, `contextProfileID`, `includeSourceApp`. `HistoryItem.goal` holds the per-run context notes (the key name stays for compatibility).
+- `ProviderSettings`, `HistoryItem`, `AIAction` and `ContextProfile` decode field by field through `KeyedDecodingContainer.decode(_:or:)`, so a missing or unreadable field falls back instead of failing the whole decode. When you add a stored property to one of them, add its line to that type's `init(from:)` and update the tripwire count in `PersistenceTests` (or `ContextTests` for `ContextProfile`).
 - `TargetModel` and `Depth` raw values are display strings that are also persisted. Renaming one changes stored data (decoding falls back to a default).
 - If history cannot be decoded at all, `HistoryStore.load` moves the file aside rather than letting the next save overwrite it.
 

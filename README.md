@@ -5,7 +5,7 @@
 
 **A native macOS app that turns rough prompts into great ones and runs AI text actions on any text you select, using the AI subscription you already pay for.**
 
-- 🪄 **Improve Prompt**: rewrites your prompt with proven prompt-engineering techniques, scores it before and after, explains what was wrong, and asks questions that make it better.
+- 🪄 **Improve Prompt**: rewrites your prompt with proven prompt-engineering techniques, grounded in your context (a saved profile, notes, attached files, the app you were in). It scores the prompt before and after, explains what was wrong, and lists the assumptions it made so you can correct them.
 - ✍️ **Text actions**: Rewrite, Proofread, Make Concise, Professional, Friendly, Summarize, Explain, Translate, Draft Reply, plus **your own custom actions**.
 - ⌨️ **Works everywhere**: select text in any app, press **⌃⌥Space**, pick an action, then **Replace** it in place or **Copy** it.
 - 🔌 **Bring your own AI**: Claude, ChatGPT or Gemini **subscriptions** through their official CLIs, or an Anthropic / OpenAI-compatible **API key** (OpenAI, OpenRouter, Ollama, LM Studio…).
@@ -90,8 +90,12 @@ For **Improve Prompt** you also get:
 - **Target**: Claude, GPT, Gemini, Any LLM, Coding agent (Claude Code / Cursor) or Image model. The rewrite follows each target's conventions.
 - **Depth**: *Light* (minimal edits), *Standard*, or *Production* (a reusable system prompt with `{{VARIABLES}}`).
 - **Techniques**: leave on *auto*, or force specific ones: Role, Context & why, Success criteria, Structure / tags, Examples, Step-by-step, Output format, Edge cases, Variables.
-- **Goal**: optional notes on who uses the prompt and what a great answer looks like.
-- **Questions**: answer them inline and click **Re-run with answers** to fill the placeholders.
+- **Context**: what makes the prompt specific instead of generic.
+  - **Profile**: reusable notes about you or a project (stack, audience, conventions), saved in **Settings → Context** and picked per run. The selected profile also applies to the quick panel.
+  - **Notes**: anything specific to this run.
+  - **Files**: attach text files with the paperclip or by dropping them on the options (UTF-8 text, up to 50 KB each and 100 KB in total).
+  - **Where you came from**: with the hotkey, Hone adds the app and window title you were in (for example "Xcode — AppState.swift") as a chip you can remove before running.
+- **Assumptions**: when something is missing, the prompt states a reasonable assumption instead of leaving `{{PLACEHOLDERS}}`. Each one is listed under the result; correct any and click **Re-run with corrections**. (Production depth still uses `{{VARIABLES}}` for inputs that change between uses.)
 - **Refine**: free-text feedback ("shorter", "return JSON") that keeps the conversation going.
 
 Every run is saved to **History** in the sidebar. Click an entry to reopen it and keep refining; right-click to copy or delete.
@@ -160,13 +164,14 @@ The meta-prompt is based on Anthropic's and OpenAI's published prompting guidanc
 - set the output format and length
 - add step-by-step reasoning or planning for complex tasks
 - cover edge cases and missing information
-- **never invent facts**: unknowns become `{{PLACEHOLDERS}}` plus a question
+- ground the prompt in your context (real project, stack, files, audience) instead of generic stand-ins
+- **never leave blanks**: when something is missing, make a reasonable assumption, write it into the prompt, and list it so you can correct it
 - keep the draft's language and cut padding
 
 The model replies in a fixed tagged format, which the app parses while it streams:
 
 ```
-<score_before> → <diagnosis> → <improved_prompt> → <changes> → <questions> → <score_after>
+<score_before> → <diagnosis> → <improved_prompt> → <changes> → <assumptions> → <score_after>
 ```
 
 ---
@@ -213,13 +218,13 @@ Sources/PromptForge/
 └── UI/
     ├── Views.swift             Main window
     ├── QuickPanel.swift        Floating non-activating panel
-    ├── SettingsView.swift      Provider / Actions / Shortcut tabs
+    ├── SettingsView.swift      Provider / Actions / Context / Shortcut tabs
     └── Theme.swift             Design tokens, ScoreMeter, shared rows, wells and motion
 ```
 
 **Data on disk**
 - History: `~/Library/Application Support/PromptForge/history-v2.json` (last 300 runs)
-- Settings: `UserDefaults` (`com.dvd90.PromptForge`)
+- Settings and context profiles: `UserDefaults` (`com.dvd90.PromptForge`)
 - API keys: Keychain, service `com.dvd90.PromptForge`
 
 Hone shipped as Prompt Forge in 1.0. The bundle ID, Swift module, Keychain service and data paths keep the `PromptForge` name so existing settings, keys and history carry over.
@@ -312,7 +317,8 @@ gh release create v1.1.0 build/Hone-1.1.0.dmg --title "v1.1.0" --notes "…"
 
 - No servers, accounts or analytics. The app talks only to the provider you select (or runs its local CLI).
 - API keys are stored in the macOS **Keychain**, never in plain text.
-- Selected text is wrapped in delimiters and labelled as content, which hardens the actions against prompt injection.
+- Selected text is wrapped in delimiters and labelled as content, which hardens the actions against prompt injection. Context (profiles, notes, files, window titles) is delimited the same way, and its closing tags are escaped so a file can't break out of its block.
+- Context goes only to the provider you chose. Turn off the window-title capture in **Settings → Context**, and remove any chip before running.
 - CLI calls run **without tools**, in a read-only or plan mode and an empty temp folder, so a model can't touch your files.
 - After capturing a selection with ⌘C, the app restores your clipboard (all types).
 

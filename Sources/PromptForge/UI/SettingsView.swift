@@ -7,6 +7,7 @@ struct SettingsView: View {
         TabView {
             ProviderSettingsView().tabItem { Label("Provider", systemImage: "bolt.horizontal") }
             ActionsSettingsView().tabItem { Label("Actions", systemImage: "square.grid.2x2") }
+            ContextSettingsView().tabItem { Label("Context", systemImage: "person.text.rectangle") }
             ShortcutSettingsView().tabItem { Label("Shortcut", systemImage: "keyboard") }
         }
         .frame(width: 600, height: 520)
@@ -232,6 +233,96 @@ struct ActionEditor: View {
                     .keyboardShortcut(.defaultAction)
                     .disabled(action.name.trimmingCharacters(in: .whitespaces).isEmpty ||
                               action.instruction.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 520)
+    }
+}
+
+// MARK: - Context
+
+struct ContextSettingsView: View {
+    @EnvironmentObject var state: AppState
+    @State private var editing: ContextProfile?
+
+    var body: some View {
+        Form {
+            Section {
+                if state.contextProfiles.isEmpty {
+                    Text("A profile is reusable context for Improve Prompt: who you are, a project's stack, audience and conventions. Add one so prompts come out specific instead of generic.")
+                        .font(.callout).foregroundStyle(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                ForEach(state.contextProfiles) { p in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(p.name)
+                            Text(p.text.isEmpty ? "Empty" : p.text).font(.caption).foregroundStyle(Theme.muted).lineLimit(1)
+                        }
+                        Spacer()
+                        Button("Edit") { editing = p }.controlSize(.small)
+                    }
+                }
+                Button { editing = state.addProfile() } label: { Label("Add profile", systemImage: "plus") }
+            } header: {
+                Text("Profiles")
+            }
+
+            Section {
+                Picker("Used by default", selection: $state.contextProfileID) {
+                    Text("No profile").tag(UUID?.none)
+                    ForEach(state.contextProfiles) { Text($0.name).tag(Optional($0.id)) }
+                }
+                .disabled(state.contextProfiles.isEmpty)
+                Toggle("Include the app and window you came from", isOn: $state.includeSourceApp)
+            } footer: {
+                Text("The profile applies in the main window and the quick panel; you can switch it per run. With the hotkey, Hone also adds the app and window title you were in (for example “Xcode — AppState.swift”), shown as a chip you can remove before running. Profiles, notes, file contents and window titles go only to the provider you selected.")
+                    .font(.caption).foregroundStyle(Theme.muted)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .background(Theme.ground)
+        .sheet(item: $editing) { p in
+            ProfileEditor(profile: p) { updated in
+                state.updateProfile(updated)
+                editing = nil
+            } onDelete: {
+                state.deleteProfile(p)
+                editing = nil
+            }
+        }
+    }
+}
+
+struct ProfileEditor: View {
+    @State var profile: ContextProfile
+    let onSave: (ContextProfile) -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Context profile").font(.headline)
+            TextField("Name", text: $profile.name).textFieldStyle(.roundedBorder)
+            Text("What should Improve Prompt know?").font(.subheadline)
+            TextEditor(text: $profile.text)
+                .font(.body)
+                .scrollContentBackground(.hidden)
+                .padding(6)
+                .frame(minHeight: 160)
+                .field(Theme.inputFill)
+            Text("Example: “I'm a Swift developer. Main project: Hone, a macOS SwiftUI app built with SwiftPM; tests use XCTest via swift test. Prompts are mostly for Claude Code.”")
+                .font(.caption).foregroundStyle(Theme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Button("Delete", role: .destructive, action: onDelete)
+                Spacer()
+                Button("Save") { onSave(profile) }
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(profile.name.trimmingCharacters(in: .whitespaces).isEmpty)
             }
         }
         .padding(20)

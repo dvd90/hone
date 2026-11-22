@@ -102,8 +102,8 @@ final class AppStateTests: XCTestCase {
         XCTAssertFalse(s.actions.contains { $0.id == "proofread" })
         s.selectedActionID = "does-not-exist"
         XCTAssertEqual(s.selectedAction, .improvePrompt)
-        s.goal = "for devs"
-        XCTAssertEqual(s.promptOptions.goal, "for devs")
+        s.notes = "for devs"
+        XCTAssertEqual(s.promptOptions.context.notes, "for devs")
     }
 
     // MARK: Running
@@ -134,7 +134,7 @@ final class AppStateTests: XCTestCase {
         await settle(s)
         XCTAssertNil(s.result)
         XCTAssertEqual(s.output, "the cat")
-        XCTAssertEqual(s.history.first?.goal, "")   // goal is only kept for Improve Prompt
+        XCTAssertEqual(s.history.first?.goal, "")   // notes are only kept for Improve Prompt
     }
 
     func testEmptyReplyIsAnErrorAndNotSaved() async {
@@ -246,19 +246,19 @@ final class AppStateTests: XCTestCase {
         let s = makeState()
         s.selectedActionID = "summarize"
         s.draft = "write tests"
-        s.goal = "devs"
+        s.notes = "devs"
         s.selectedActionID = AIAction.improvePrompt.id
         s.run()
         await settle(s)
         let item = s.history[0]
 
         s.reset()
-        XCTAssertEqual(s.draft, ""); XCTAssertEqual(s.goal, ""); XCTAssertEqual(s.raw, "")
+        XCTAssertEqual(s.draft, ""); XCTAssertEqual(s.notes, ""); XCTAssertEqual(s.raw, "")
         s.selectedActionID = "summarize"         // a different action is selected when reopening
         s.open(item)
         XCTAssertEqual(s.selectedActionID, AIAction.improvePrompt.id)
         XCTAssertEqual(s.output, "Write tests for Hone.")
-        XCTAssertEqual(s.goal, "devs")
+        XCTAssertEqual(s.notes, "devs")
         XCTAssertEqual(s.currentID, item.id)
 
         var orphan = item
@@ -267,11 +267,15 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(s.selectedActionID, AIAction.improvePrompt.id)
 
         s.clearOutput()
-        s.load(action: .improvePrompt, draft: "write tests", raw: item.raw)
+        let sent = ChatMessage(role: "user", content: "what the panel sent")
+        s.load(action: .improvePrompt, draft: "write tests", raw: item.raw, message: sent, source: "Xcode — App.swift")
         XCTAssertEqual(s.result?.improvedPrompt, "Write tests for Hone.")
         XCTAssertEqual(s.currentID, item.id)
+        XCTAssertEqual(s.conversation, [sent])          // follow-ups continue what was actually sent
+        XCTAssertEqual(s.sourceApp, "Xcode — App.swift")
+        XCTAssertEqual(s.notes, "")
         let proofread = AIAction.builtIns.first { $0.id == "proofread" }!
-        s.load(action: proofread, draft: "teh", raw: "the")
+        s.load(action: proofread, draft: "teh", raw: "the", message: sent, source: "")
         XCTAssertNil(s.result)
         XCTAssertNil(s.currentID)
     }
@@ -330,6 +334,129 @@ final class AppStateTests: XCTestCase {
         let other = s.addCustomAction()
         s.deleteCustomAction(other)               // not selected: selection untouched
         XCTAssertEqual(s.selectedActionID, AIAction.improvePrompt.id)
+    }
+
+    // MARK: Context
+
+    private func textFile(_ name: String, bytes: Int, fill: UInt8 = 0x61) throws -> URL {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("PF-\(UUID().uuidString)-\(name)")
+        try Data(repeating: fill, count: bytes).write(to: url)
+        addTeardownBlock { try? FileManager.default.removeItem(at: url) }
+        return url
+    }
+
+    func testProfilesAreSavedAndShared() {
+        let s = makeState()
+        XCTAssertTrue(s.includeSourceApp)                 // on by default
+        XCTAssertNil(s.selectedProfile)
+        var hone = s.addProfile()                         // the first profile becomes the selection
+        XCTAssertEqual(s.contextProfileID, hone.id)
+        hone.name = "Hone"; hone.text = "macOS SwiftUI app"
+        s.updateProfile(hone)
+        s.updateProfile(ContextProfile())                 // unknown id: ignored
+        let other = s.addProfile()
+        XCTAssertEqual(s.contextProfileID, hone.id)       // adding more doesn't change the selection
+        s.includeSourceApp = false
+
+        let reloaded = makeState()
+        XCTAssertEqual(reloaded.contextProfiles.map(\.name), ["Hone", "New profile"])
+        XCTAssertEqual(reloaded.selectedProfile?.text, "macOS SwiftUI app")
+        XCTAssertFalse(reloaded.includeSourceApp)
+
+        s.deleteProfile(other)
+        XCTAssertEqual(s.contextProfileID, hone.id)
+        s.deleteProfile(hone)                             // deleting the selected one clears the selection
+        XCTAssertNil(s.contextProfileID)
+        XCTAssertNil(makeState().contextProfileID)
+    }
+
+    func testMainWindowSendsAllContextAndThePanelOnlyItsOwn() async throws {
+        let s = makeState()
+        var profile = s.addProfile(); profile.text = "Hone, a macOS app"; s.updateProfile(profile)
+        s.notes = "audience: contributors"
+        s.attach([try textFile("CLAUDE.md", bytes: 10)])
+
+        let main = s.promptOptions.context
+        XCTAssertEqual(main.profile?.text, "Hone, a macOS app")
+        XCTAssertEqual(main.notes, "audience: contributors")
+        XCTAssertEqual(main.files.count, 1)
+
+        let panel = s.panelOptions(source: "Xcode — App.swift").context
+        XCTAssertEqual(panel.profile?.text, "Hone, a macOS app")
+        XCTAssertEqual(panel.source, "Xcode — App.swift")
+        XCTAssertEqual(panel.notes, "")                   // main-window notes never leak into panel runs
+        XCTAssertTrue(panel.files.isEmpty)
+
+        replies = [.text(["<improved_prompt>\nX\n</improved_prompt>"])]
+        s.draft = "write tests"
+        s.run()
+        await settle(s)
+        let sent = calls.first?.first?.content ?? ""
+        XCTAssertTrue(sent.contains("<notes>\naudience: contributors\n</notes>"))
+        XCTAssertTrue(sent.contains("-CLAUDE.md\">\naaaaaaaaaa\n</file>"))
+        XCTAssertEqual(s.history.first?.goal, "audience: contributors")
+
+        s.recordHistory(action: .improvePrompt, draft: "panel run", raw: "r", conversation: [], notes: "")
+        XCTAssertEqual(s.history.first?.goal, "")         // panel runs save no main-window notes
+    }
+
+    func testAttachEnforcesLimitsAndSkipsDuplicates() throws {
+        let s = makeState()
+        let a = try textFile("a.txt", bytes: 40_000)
+        s.attach([a, a])                                  // same file twice: attached once
+        XCTAssertEqual(s.attachments.count, 1)
+        XCTAssertNil(s.errorMessage)
+        s.attach([try textFile("b.txt", bytes: 40_000, fill: 0x62), try textFile("c.txt", bytes: 40_000, fill: 0x63),
+                  try textFile("bin.dat", bytes: 10, fill: 0xFF)])
+        XCTAssertEqual(s.attachments.count, 2)            // c.txt would pass 100 KB; bin.dat isn't text
+        let problems = try XCTUnwrap(s.errorMessage)
+        XCTAssertTrue(problems.contains("100 KB total"))
+        XCTAssertTrue(problems.contains("isn't a text file"))
+
+        s.removeAttachment(s.attachments[0])
+        XCTAssertEqual(s.attachments.count, 1)
+        s.attach([])
+        XCTAssertNil(s.errorMessage)
+    }
+
+    func testOpenResetAndPanelItemsCleanUpContext() async {
+        let s = makeState()
+        s.notes = "n"; s.sourceApp = "Xcode"
+        s.attachments = [Attachment(name: "f", text: "t")]
+        s.reset()
+        XCTAssertEqual(s.notes, ""); XCTAssertEqual(s.sourceApp, ""); XCTAssertTrue(s.attachments.isEmpty)
+
+        // An older quick-panel item saved [user, assistant]; reopening drops the assistant turn so a
+        // follow-up doesn't send two replies in a row.
+        let user = ChatMessage(role: "user", content: "draft"), reply = ChatMessage(role: "assistant", content: "out")
+        let item = HistoryItem(id: UUID(), date: Date(), actionID: "proofread", actionName: "Proofread", draft: "draft",
+                               goal: "", target: .claude, provider: "Codex", raw: "out", conversation: [user, reply])
+        s.attachments = [Attachment(name: "f", text: "t")]
+        s.open(item)
+        XCTAssertEqual(s.conversation, [user])
+        XCTAssertTrue(s.attachments.isEmpty)
+        replies = [.text(["shorter"])]
+        s.feedback = "shorter"
+        s.refine()
+        await settle(s)
+        XCTAssertEqual(calls.last?.map(\.role), ["user", "assistant", "user"])
+    }
+
+    func testCorrectionsReplaceAnswersWhenThereAreAssumptions() async {
+        let reply = "<improved_prompt>\nAdd XCTest tests.\n</improved_prompt>\n<assumptions>\n- Tests use XCTest\n- Target is macOS 14\n</assumptions>"
+        replies = [.text([reply]), .text([reply])]
+        let s = makeState()
+        s.submitAnswers()                                 // no result yet: nothing sent
+        s.draft = "write tests"
+        s.run()
+        await settle(s)
+        XCTAssertEqual(s.result?.followUps, ["Tests use XCTest", "Target is macOS 14"])
+        s.answers = ["Tests use XCTest": "Swift Testing", "Target is macOS 14": " "]
+        s.submitAnswers()
+        await settle(s)
+        let sent = calls.last?.last?.content ?? ""
+        XCTAssertTrue(sent.contains("<corrections>\nAssumed: Tests use XCTest\nActually: Swift Testing\n</corrections>"))
+        XCTAssertFalse(sent.contains("macOS 14"))
     }
 }
 
