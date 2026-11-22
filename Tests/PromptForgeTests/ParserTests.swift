@@ -38,10 +38,10 @@ final class ParserTests: XCTestCase {
     }
 
     func testPromptUserMessage() {
-        let m = MetaPrompt.userMessage(draft: "write a poem", goal: "", target: .gpt, depth: .light, techniques: [.examples])
+        let m = MetaPrompt.userMessage(draft: "write a poem", context: PromptContext(), target: .gpt, depth: .light, techniques: [.examples])
         XCTAssertTrue(m.contains("<draft_prompt>\nwrite a poem\n</draft_prompt>"))
         XCTAssertTrue(m.contains("Examples:"))
-        XCTAssertFalse(m.contains("<author_goal>"))
+        XCTAssertFalse(m.contains("<context>"))
     }
 
     func testTransformAction() {

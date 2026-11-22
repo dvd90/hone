@@ -67,6 +67,27 @@ final class GlobalHotKey {
 enum SelectionBridge {
     static var isTrusted: Bool { AXIsProcessTrusted() }
 
+    /// "App — Window title" for the app the user was in, sent as Improve Prompt context. The title needs
+    /// Accessibility; without it this is just the app name. Never describes Hone itself.
+    @MainActor
+    static func sourceDescription(of app: NSRunningApplication?) -> String {
+        guard let app, app.bundleIdentifier != Bundle.main.bundleIdentifier else { return "" }
+        let title = isTrusted ? focusedWindowTitle(pid: app.processIdentifier) : nil
+        return SourceContext.describe(appName: app.localizedName, windowTitle: title)
+    }
+
+    private static func focusedWindowTitle(pid: pid_t) -> String? {
+        let appElement = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(appElement, 0.25)   // a busy app must not stall the hotkey
+        var window: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(appElement, kAXFocusedWindowAttribute as CFString, &window) == .success,
+              let window, CFGetTypeID(window) == AXUIElementGetTypeID() else { return nil }
+        var title: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(unsafeBitCast(window, to: AXUIElement.self), kAXTitleAttribute as CFString,
+                                            &title) == .success else { return nil }
+        return title as? String
+    }
+
     static func requestTrust() {
         let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(opts)

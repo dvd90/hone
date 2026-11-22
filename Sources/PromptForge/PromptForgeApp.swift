@@ -4,6 +4,9 @@ import SwiftUI
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // A CLI that exits before reading all of stdin (large context) must not kill Hone with SIGPIPE;
+        // the write then just fails and the CLI's own error is reported.
+        signal(SIGPIPE, SIG_IGN)
         NSApp.setActivationPolicy(.regular)
         AppState.shared.startSystemIntegration()
         NSApp.activate(ignoringOtherApps: true)

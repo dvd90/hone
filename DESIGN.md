@@ -220,7 +220,8 @@ Native macOS buttons only; the world restyles none of them.
 ### Navigation
 - **Main window:** native `NavigationSplitView` with a History sidebar list; selection in the accent with white text; rows show a medium-weight title over a muted caption line (score "12→80" and relative time).
 - **Settings:** native tabs and grouped Forms on the ground colour.
-- **Quick panel:** a header row (periwinkle dot, "Hone", provider name in muted), the source text, a hairline, then a three-column action grid with numeric shortcuts, or the result and a Dial footer.
+- **Quick panel:** a header row (periwinkle dot, "Hone", provider name in muted), the source text, a hairline, then a three-column action grid with numeric shortcuts and, when there is one, a "Prompt context" row (profile picker and the removable source-app chip), or the result and a Dial footer. Improve Prompt results add one muted "Assumed: …" line under the well (2 lines, full list as a tooltip).
+- **Settings:** a Context tab (profiles list with an editor sheet, "Used by default" picker, source-app toggle) between Actions and Shortcut.
 
 ### OptionRow
 The Dial row: a muted label on the left, a spacer of at least 12px, and the value or control on the right, aligned on the first baseline. Use it for every label/value pair outside grouped Forms.
@@ -255,3 +256,9 @@ Layout changes (sections appearing in the output) use a 0.22s smooth animation t
 - **Don't** set text in periwinkle marker colour or in red.
 - **Don't** add a second accent colour or a second prominent button in the same area.
 - **Don't** replace native controls with custom-drawn buttons, toggles or tabs.
+
+### Context row and chips
+- **Context row** (input pane, top of the options band): an OptionRow labelled "Context" with the profile menu (or an "Add profile…" link when none exist) and a paperclip button, then a growing `.roundedBorder` text field (1–6 lines) with a drawn placeholder. The whole band accepts file drops.
+- **ContextChip:** a small capsule (field fill, hairline border) with a muted SF Symbol (`doc.text` for files, `macwindow` for the source app), the name truncated in the middle (max 280px), and a borderless remove button labelled "Remove <name>" for VoiceOver. Chips wrap in a FlowLayout and appear only when there are any.
+- **Assumptions section** (output): headline "Assumptions", one muted sentence explaining it, each assumption with an optional correction field, and a bordered "Re-run with corrections" button. History items from before assumptions keep "Questions that would sharpen it".
+

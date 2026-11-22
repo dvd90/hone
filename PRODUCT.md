@@ -10,7 +10,7 @@ macos
 People who write prompts for AI tools and people editing everyday text (email, docs, messages) in any Mac app. Both are first-class: Improve Prompt and the quick text actions are co-equal. They want to sharpen a prompt or transform a selection without leaving the app they are in.
 
 ## Product Purpose
-Hone improves prompts (scores before and after, diagnoses weaknesses, rewrites with prompt-engineering techniques, asks questions to fill placeholders) and runs text actions (Rewrite, Proofread, Concise, tone, Summarize, Explain, Translate, Draft Reply, custom actions) on any selected text. Success: a better prompt or text back in place in seconds.
+Hone improves prompts (scores before and after, diagnoses weaknesses, rewrites with prompt-engineering techniques, grounds it in the author's context, and lists the assumptions it made instead of leaving placeholders) and runs text actions (Rewrite, Proofread, Concise, tone, Summarize, Explain, Translate, Draft Reply, custom actions) on any selected text. Success: a better prompt or text back in place in seconds.
 
 ## Positioning
 Runs on the AI subscription the user already pays for, through the official Claude Code, Codex and Gemini CLIs, or on an API key. No backend, no account.

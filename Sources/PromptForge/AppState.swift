@@ -7,7 +7,11 @@ final class AppState: ObservableObject {
 
     // Input
     @Published var draft = ""
-    @Published var goal = ""
+    /// Per-run context for Improve Prompt (stored in HistoryItem.goal).
+    @Published var notes = ""
+    @Published var attachments: [Attachment] = []
+    /// The app and window an "Open in App" run came from; empty for runs started in the main window.
+    @Published var sourceApp = ""
     @Published var target: TargetModel { didSet { defaults.set(target.rawValue, forKey: "target") } }
     @Published var depth: Depth { didSet { defaults.set(depth.rawValue, forKey: "depth") } }
     @Published var techniques: Set<Technique> = []
@@ -31,6 +35,11 @@ final class AppState: ObservableObject {
     @Published var customActions: [AIAction] { didSet { saveJSON(customActions, "customActions") } }
     @Published var hiddenActionIDs: Set<String> { didSet { saveJSON(hiddenActionIDs, "hiddenActionIDs") } }
     @Published var hotKey: HotKeyPreset { didSet { defaults.set(hotKey.rawValue, forKey: "hotKey"); applyHotKey() } }
+    @Published var contextProfiles: [ContextProfile] { didSet { saveJSON(contextProfiles, "contextProfiles.v1") } }
+    /// The profile used for Improve Prompt, in the main window and the quick panel alike; nil = none.
+    @Published var contextProfileID: UUID? { didSet { defaults.set(contextProfileID?.uuidString, forKey: "contextProfileID") } }
+    /// Whether the hotkey adds the app and window title the user came from.
+    @Published var includeSourceApp: Bool { didSet { defaults.set(includeSourceApp, forKey: "includeSourceApp") } }
 
     let quickPanel = QuickPanelController()
     let serviceProvider = ServiceProvider()
@@ -56,6 +65,9 @@ final class AppState: ObservableObject {
         customActions = Self.loadJSON("customActions", from: defaults) ?? []
         hiddenActionIDs = Self.loadJSON("hiddenActionIDs", from: defaults) ?? []
         hotKey = defaults.string(forKey: "hotKey").flatMap(HotKeyPreset.init(rawValue:)) ?? .ctrlOptSpace
+        contextProfiles = Self.loadJSON("contextProfiles.v1", from: defaults) ?? []
+        contextProfileID = defaults.string(forKey: "contextProfileID").flatMap(UUID.init(uuidString:))
+        includeSourceApp = defaults.object(forKey: "includeSourceApp") as? Bool ?? true
         history = HistoryStore.load(from: historyURL)
         quickPanel.state = self
     }
@@ -65,7 +77,19 @@ final class AppState: ObservableObject {
     var allActions: [AIAction] { AIAction.builtIns + customActions }
     var actions: [AIAction] { allActions.filter { !hiddenActionIDs.contains($0.id) } }
     var selectedAction: AIAction { allActions.first { $0.id == selectedActionID } ?? .improvePrompt }
-    var promptOptions: PromptOptions { PromptOptions(target: target, depth: depth, techniques: techniques, goal: goal) }
+    var selectedProfile: ContextProfile? { contextProfiles.first { $0.id == contextProfileID } }
+
+    /// Main-window runs: profile, notes, attached files, and the source app when the run came from the panel.
+    var promptOptions: PromptOptions {
+        PromptOptions(target: target, depth: depth, techniques: techniques,
+                      context: PromptContext(profile: selectedProfile, notes: notes, source: sourceApp, files: attachments))
+    }
+
+    /// Quick-panel runs: only the profile and where the user came from, never the main window's notes or files.
+    func panelOptions(source: String) -> PromptOptions {
+        PromptOptions(target: target, depth: depth, techniques: techniques,
+                      context: PromptContext(profile: selectedProfile, source: source))
+    }
     var output: String { ActionEngine.displayText(action: selectedAction, raw: raw) }
 
     // MARK: Main-window actions
@@ -87,13 +111,19 @@ final class AppState: ObservableObject {
         feedback = ""
     }
 
+    /// Sends the author's corrections to listed assumptions (or answers to questions on older history items).
     func submitAnswers() {
-        let qa = (result?.questions ?? []).compactMap { q -> String? in
-            guard let a = answers[q]?.trimmingCharacters(in: .whitespacesAndNewlines), !a.isEmpty else { return nil }
-            return "Q: \(q)\nA: \(a)"
+        guard let result else { return }
+        let correcting = !result.assumptions.isEmpty
+        let pairs = result.followUps.compactMap { item -> String? in
+            guard let a = answers[item]?.trimmingCharacters(in: .whitespacesAndNewlines), !a.isEmpty else { return nil }
+            return correcting ? "Assumed: \(item)\nActually: \(a)" : "Q: \(item)\nA: \(a)"
         }
-        guard !qa.isEmpty else { return }
-        send(followUp: "Here are answers to your questions. Incorporate them and replace any related placeholders. Respond in the same format.\n\n<answers>\n\(qa.joined(separator: "\n\n"))\n</answers>")
+        guard !pairs.isEmpty else { return }
+        let body = pairs.joined(separator: "\n\n")
+        send(followUp: correcting
+            ? "The author reviewed your assumptions. Apply these corrections everywhere they matter, keep only assumptions that still stand, and respond in the same format.\n\n<corrections>\n\(body)\n</corrections>"
+            : "Here are answers to your questions. Incorporate them and replace any related placeholders. Respond in the same format.\n\n<answers>\n\(body)\n</answers>")
         answers = [:]
     }
 
@@ -110,25 +140,29 @@ final class AppState: ObservableObject {
 
     func reset() {
         clearOutput()
-        draft = ""; goal = ""
+        draft = ""; notes = ""; attachments = []; sourceApp = ""
     }
 
     func open(_ item: HistoryItem) {
         cancel()
         selectedActionID = allActions.contains { $0.id == item.actionID } ? item.actionID : AIAction.improvePrompt.id
-        draft = item.draft; goal = item.goal; target = item.target
-        raw = item.raw; result = item.result; conversation = item.conversation
+        draft = item.draft; notes = item.goal; target = item.target
+        attachments = []; sourceApp = ""
+        raw = item.raw; result = item.result
+        // Older quick-panel items saved [user, assistant]; follow-ups append the reply themselves.
+        conversation = item.conversation.last?.role == "assistant" ? Array(item.conversation.dropLast()) : item.conversation
         currentID = item.id; errorMessage = nil; answers = [:]; feedback = ""
     }
 
-    /// Called by the quick panel's "Open in App".
-    func load(action: AIAction, draft text: String, raw r: String) {
+    /// Called by the quick panel's "Open in App", with the message the panel actually sent.
+    func load(action: AIAction, draft text: String, raw r: String, message: ChatMessage, source: String) {
         cancel()
         selectedActionID = action.id
         draft = text
+        notes = ""; attachments = []; sourceApp = source
         raw = r
         result = action.kind == .promptEngineer ? ForgeResult.parse(r) : nil
-        conversation = [ActionEngine.firstMessage(action: action, text: text, options: promptOptions)]
+        conversation = [message]
         currentID = history.first { $0.raw == r }?.id
         errorMessage = nil; answers = [:]; feedback = ""
     }
@@ -144,6 +178,45 @@ final class AppState: ObservableObject {
         guard !out.isEmpty else { return }
         clearOutput()
         draft = out
+    }
+
+    // MARK: Context
+
+    /// Adds text files to the next run, enforcing the per-file and total caps; problems show in the error banner.
+    func attach(_ urls: [URL]) {
+        var problems: [String] = []
+        for url in urls {
+            do {
+                let file = try Attachment.read(url)
+                if attachments.contains(where: { $0.name == file.name && $0.text == file.text }) { continue }
+                let total = attachments.reduce(0) { $0 + $1.text.utf8.count } + file.text.utf8.count
+                guard total <= Attachment.maxTotalBytes else { throw Attachment.ReadError.overTotal(file.name) }
+                attachments.append(file)
+            } catch {
+                problems.append(error.localizedDescription)
+            }
+        }
+        errorMessage = problems.isEmpty ? nil : problems.joined(separator: "\n")
+    }
+
+    func removeAttachment(_ file: Attachment) {
+        attachments.removeAll { $0.id == file.id }
+    }
+
+    func addProfile() -> ContextProfile {
+        let p = ContextProfile()
+        contextProfiles.append(p)
+        if contextProfileID == nil { contextProfileID = p.id }
+        return p
+    }
+
+    func updateProfile(_ p: ContextProfile) {
+        if let i = contextProfiles.firstIndex(where: { $0.id == p.id }) { contextProfiles[i] = p }
+    }
+
+    func deleteProfile(_ p: ContextProfile) {
+        contextProfiles.removeAll { $0.id == p.id }
+        if contextProfileID == p.id { contextProfileID = nil }
     }
 
     // MARK: Custom actions
@@ -169,9 +242,11 @@ final class AppState: ObservableObject {
     // MARK: History
 
     @discardableResult
-    func recordHistory(action: AIAction, draft text: String, raw r: String, conversation conv: [ChatMessage], id: UUID? = nil) -> UUID {
+    func recordHistory(action: AIAction, draft text: String, raw r: String, conversation conv: [ChatMessage],
+                       id: UUID? = nil, notes runNotes: String? = nil) -> UUID {
+        let kept = action.kind == .promptEngineer ? (runNotes ?? notes) : ""
         let item = HistoryItem(id: id ?? UUID(), date: Date(), actionID: action.id, actionName: action.name,
-                               draft: text, goal: action.kind == .promptEngineer ? goal : "", target: target,
+                               draft: text, goal: kept, target: target,
                                provider: providerSettings.kind.shortLabel, raw: r, conversation: conv)
         history.removeAll { $0.id == item.id }
         history.insert(item, at: 0)

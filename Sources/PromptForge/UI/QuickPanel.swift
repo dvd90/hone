@@ -19,29 +19,34 @@ final class QuickPanelController: ObservableObject {
     @Published var action: AIAction?
     @Published var canReplace = false
     @Published var copied = false
+    /// Where the user came from ("App — Window title"), sent as Improve Prompt context; removable in the panel.
+    @Published var source = ""
 
     weak var state: AppState?
     private var panel: KeyablePanel?
     private var previousApp: NSRunningApplication?
     private var task: Task<Void, Never>?
+    private var sentMessage: ChatMessage?
 
     // MARK: Entry points
 
     /// Hotkey: grab the current selection in whatever app is frontmost.
     func presentFromSelection() async {
         previousApp = NSWorkspace.shared.frontmostApplication
+        let source = state?.includeSourceApp == true ? SelectionBridge.sourceDescription(of: previousApp) : ""
         if !SelectionBridge.isTrusted { SelectionBridge.requestTrust() }
         let captured = await SelectionBridge.captureSelection()
-        present(text: captured.text, canReplace: captured.fromSelection, autoRun: nil)
+        present(text: captured.text, canReplace: captured.fromSelection, autoRun: nil, source: source)
     }
 
     /// Services menu / clipboard: text is handed to us directly.
-    func present(text: String, canReplace: Bool, autoRun actionID: String?) {
+    func present(text: String, canReplace: Bool, autoRun actionID: String?, source: String = "") {
         if previousApp == nil || previousApp?.bundleIdentifier == Bundle.main.bundleIdentifier {
             previousApp = NSWorkspace.shared.frontmostApplication
         }
         task?.cancel()
         sourceText = text
+        self.source = source
         self.canReplace = canReplace && SelectionBridge.isTrusted
         output = ""; raw = ""; action = nil; phase = .choosing
         showPanel()
@@ -62,8 +67,8 @@ final class QuickPanelController: ObservableObject {
             phase = .failed(error.localizedDescription); return
         }
         phase = .running
-        let options = state.promptOptions
-        let message = ActionEngine.firstMessage(action: a, text: text, options: options)
+        let message = ActionEngine.firstMessage(action: a, text: text, options: state.panelOptions(source: source))
+        sentMessage = message
         let system = ActionEngine.system(for: a)
 
         task?.cancel()
@@ -83,7 +88,7 @@ final class QuickPanelController: ObservableObject {
                     self.phase = .failed("The model returned nothing usable. Try again.")
                 } else {
                     self.phase = .done
-                    self.state?.recordHistory(action: a, draft: text, raw: raw, conversation: [message, ChatMessage(role: "assistant", content: raw)])
+                    self.state?.recordHistory(action: a, draft: text, raw: raw, conversation: [message], notes: "")
                 }
             } catch {
                 guard let self else { return }
@@ -118,8 +123,8 @@ final class QuickPanelController: ObservableObject {
     }
 
     func openInApp() {
-        guard let state, let a = action else { return }
-        state.load(action: a, draft: sourceText, raw: raw)
+        guard let state, let a = action, let message = sentMessage else { return }
+        state.load(action: a, draft: sourceText, raw: raw, message: message, source: source)
         close()
         state.showMainWindow()
     }
@@ -230,9 +235,32 @@ struct QuickPanelView: View {
                     .disabled(c.sourceText.isEmpty)
                 }
             }
+            if !state.contextProfiles.isEmpty || !c.source.isEmpty { promptContextRow }
             Text("Press 1–9 or click · Esc to close")
                 .font(.caption2).foregroundStyle(Theme.muted)
         }
+    }
+
+    /// What Improve Prompt will know: the selected profile and the app the user came from (removable).
+    private var promptContextRow: some View {
+        HStack(spacing: 8) {
+            Text("Prompt context").font(.caption).foregroundStyle(Theme.muted)
+            if !state.contextProfiles.isEmpty {
+                Picker("Context profile", selection: Binding(get: { state.contextProfileID },
+                                                             set: { state.contextProfileID = $0 })) {
+                    Text("No profile").tag(UUID?.none)
+                    ForEach(state.contextProfiles) { Text($0.name).tag(Optional($0.id)) }
+                }
+                .labelsHidden()
+                .controlSize(.small)
+                .fixedSize()
+            }
+            if !c.source.isEmpty {
+                ContextChip(title: c.source, icon: "macwindow") { c.source = "" }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.top, 4)
     }
 
     private var resultView: some View {
@@ -263,6 +291,14 @@ struct QuickPanelView: View {
                 }
                 .frame(minHeight: 120, maxHeight: 320)
                 .field()
+                if c.action?.kind == .promptEngineer, c.phase == .done,
+                   case let assumed = ForgeResult.parse(c.raw).assumptions, !assumed.isEmpty {
+                    // Replace pastes the prompt straight into another app, so show what it took for granted.
+                    Text("Assumed: " + assumed.map { $0.hasSuffix(".") ? String($0.dropLast()) : $0 }.joined(separator: "; "))
+                        .font(.caption).foregroundStyle(Theme.muted)
+                        .lineLimit(2)
+                        .help(assumed.map { "• " + $0 }.joined(separator: "\n"))
+                }
             }
 
             Divider().padding(.vertical, 2)
