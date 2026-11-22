@@ -11,9 +11,9 @@
 - 🔌 **Bring your own AI**: Claude, ChatGPT or Gemini **subscriptions** through their official CLIs, or an Anthropic / OpenAI-compatible **API key** (OpenAI, OpenRouter, Ollama, LM Studio…).
 - 🔒 **Private by design**: no backend, no telemetry. Keys live in the macOS Keychain, and text goes only to the provider you choose.
 
-[![Hone demo: select text, press Ctrl + Option + Space, improve the prompt](marketing/hone-video-poster.png)](marketing/hone-video-revised.mp4)
+[![Hone demo: select text, press Ctrl + Option + Space, improve the prompt](docs/demo-poster.png)](docs/demo.mp4)
 
-[Watch the 34-second demo](marketing/hone-video-revised.mp4) (no sound).
+[Watch the 34-second demo](docs/demo.mp4) (no sound).
 
 Hone is open source under the [MIT License](LICENSE) at [github.com/dvd90/prompt-forge](https://github.com/dvd90/prompt-forge), and improvements are welcome: bug reports, ideas, new actions, new providers, tests and fixes. See [Contributing](#contributing).
 
