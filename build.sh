@@ -1,7 +1,8 @@
 #!/bin/bash
 # Builds Hone.app. Usage: ./build.sh [--install]
-# Signs with your Developer ID Application certificate when one is installed (notarizable, and
-# Accessibility permission survives rebuilds); otherwise ad-hoc. Override with SIGN_ID="…" or SIGN_ID=-.
+# Signs with your Developer ID Application certificate when one is installed (notarizable). A local
+# --install falls back to an Apple Development certificate. With either, the Accessibility grant survives
+# rebuilds; otherwise the build is ad-hoc. Override with SIGN_ID="…" or SIGN_ID=-.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -19,9 +20,13 @@ if xcrun --find actool >/dev/null 2>&1; then
   xcrun actool Assets.xcassets --compile "$APP/Contents/Resources" --platform macosx \
     --minimum-deployment-target 14.0 --output-partial-info-plist "$(mktemp)" >/dev/null
 fi
-SIGN_ID="${SIGN_ID:-$(security find-identity -v -p codesigning | sed -n 's/.*"\(Developer ID Application: .*\)"$/\1/p' | head -1)}"
+IDS="$(security find-identity -v -p codesigning)"
+cert() { sed -n "s/.*\"\($1: .*\)\"\$/\1/p" <<<"$IDS" | head -1; }
+SIGN_ID="${SIGN_ID:-$(cert "Developer ID Application")}"
+# Local installs only, so a release DMG is never shipped with a development certificate.
+if [ "${1:-}" = "--install" ]; then SIGN_ID="${SIGN_ID:-$(cert "Apple Development")}"; fi
 SIGN_ID="${SIGN_ID:--}"
-if [ "$SIGN_ID" = "-" ]; then TIMESTAMP="--timestamp=none"; else TIMESTAMP="--timestamp"; fi
+case "$SIGN_ID" in "Developer ID"*) TIMESTAMP="--timestamp" ;; *) TIMESTAMP="--timestamp=none" ;; esac
 # Hardened runtime is required for notarization; the app needs no entitlements.
 codesign --force --options runtime "$TIMESTAMP" --sign "$SIGN_ID" "$APP"
 echo "Built: $APP (signed: $([ "$SIGN_ID" = "-" ] && echo ad-hoc || echo "$SIGN_ID"))"

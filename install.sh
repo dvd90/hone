@@ -12,6 +12,8 @@ fi
 # Quit a running copy so the bundle can be replaced.
 osascript -e 'tell application id "com.dvd90.PromptForge" to quit' >/dev/null 2>&1 || true
 sleep 1
+# The quit Apple Event can be refused (Automation permission); without this, the old copy keeps running.
+pkill -x PromptForge 2>/dev/null || true
 
 ./build.sh --install
 
