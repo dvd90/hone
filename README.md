@@ -11,7 +11,11 @@
 - 🔌 **Bring your own AI**: Claude, ChatGPT or Gemini **subscriptions** through their official CLIs, or an Anthropic / OpenAI-compatible **API key** (OpenAI, OpenRouter, Ollama, LM Studio…).
 - 🔒 **Private by design**: no backend, no telemetry. Keys live in the macOS Keychain, and text goes only to the provider you choose.
 
-Hone is open source under the [MIT License](LICENSE), and improvements are welcome: bug reports, ideas, new actions, new providers, tests and fixes. See [Contributing](#contributing).
+[![Hone demo: select text, press Ctrl + Option + Space, improve the prompt](docs/demo-poster.png)](docs/demo.mp4)
+
+[Watch the 34-second demo](docs/demo.mp4) (no sound).
+
+Hone is open source under the [MIT License](LICENSE) at [github.com/dvd90/prompt-forge](https://github.com/dvd90/prompt-forge), and improvements are welcome: bug reports, ideas, new actions, new providers, tests and fixes. See [Contributing](#contributing).
 
 ---
 
@@ -45,6 +49,8 @@ Hone is open source under the [MIT License](LICENSE), and improvements are welco
    xattr -dr com.apple.quarantine "/Applications/Hone.app"
    ```
    or open it once, then click **Open Anyway** in **System Settings → Privacy & Security**.
+
+The current release, 1.0.0, is `PromptForge-1.0.0.dmg`. It predates the Hone name, Context and Assumptions; build from source (Option B) to get them.
 
 ### Option B: build from source
 Requires Xcode or the Xcode Command Line Tools (Swift 5.10+). Full Xcode also compiles the accent-color asset; with only the Command Line Tools the app uses your system accent color.
@@ -207,11 +213,15 @@ flowchart LR
 Sources/PromptForge/
 ├── PromptForgeApp.swift        App, menu bar, commands, AppDelegate
 ├── AppState.swift              Main-window state, history, settings, engine
+├── AppState+System.swift       Hotkey, clipboard and window glue
+├── PromptContext.swift         Context profiles, attached files, source app
+├── Layout.swift                Chip layout math
 ├── Models.swift                ForgeResult parser, targets, depth, techniques, history
 ├── MetaPrompt.swift            The prompt-engineering system prompt
 ├── Actions/Actions.swift       AIAction registry + ActionEngine
 ├── Providers/
-│   ├── Provider.swift          LLMProvider protocol, ProviderKind, settings, Keychain
+│   ├── Provider.swift          LLMProvider protocol, ProviderKind, settings
+│   ├── Keychain.swift          API key storage
 │   ├── HTTPProviders.swift     Anthropic + OpenAI-compatible (SSE)
 │   └── CLIProvider.swift       Claude Code / Codex / Gemini CLI + PATH resolution
 ├── System/SystemIntegration.swift   Carbon hotkey, selection capture/paste, Services
