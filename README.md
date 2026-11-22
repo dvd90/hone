@@ -264,7 +264,7 @@ builtIn("bulletize", "Bullet Points", "list.dash",
 
 ```bash
 swift build                               # debug build
-./build.sh                                # → build/Hone.app (Developer ID signed if installed, else ad-hoc)
+./build.sh                                # → build/Hone.app (Developer ID signed if installed, else ad-hoc; ./install.sh also accepts Apple Development)
 ./build.sh --install                      # … and copy to /Applications
 ./install.sh                              # quit running copy, install, register Services, launch
 scripts/make_dmg.sh                       # → build/Hone-<version>.dmg (signed + notarized when a Developer ID cert is installed)
@@ -298,7 +298,7 @@ gh release create v1.1.0 build/Hone-1.1.0.dmg --title "v1.1.0" --notes "…"
 |---|---|
 | "Hone can't be opened" | Only for ad-hoc builds (not notarized): `xattr -dr com.apple.quarantine "/Applications/Hone.app"` |
 | Hotkey does nothing | Another app may own the combo. Pick another in Settings → Shortcut |
-| Hotkey uses the clipboard instead of the selection; no Replace button | Grant Accessibility. Developer ID builds keep the grant; **after every rebuild** of an ad-hoc build, remove and re-add it in the Accessibility list |
+| Hotkey uses the clipboard instead of the selection; no Replace button | Grant Accessibility. Builds signed with Developer ID or Apple Development keep the grant; **after every rebuild** of an ad-hoc build, remove and re-add it in the Accessibility list |
 | "Couldn't find the `claude` command" | Settings → Provider shows where it looked. Install the CLI, or make sure it's on your login-shell `PATH` |
 | `Claude Code failed: … login` | Run `claude` in Terminal and sign in |
 | Gemini: "Please set an Auth method" | Run `gemini` once and choose "Login with Google" |

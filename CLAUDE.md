@@ -9,7 +9,7 @@ Formerly named Prompt Forge. The bundle ID, Swift module/target, Keychain servic
 2. `swift test`: add tests for any new logic.
 3. `PF_LIVE=1 swift test --filter LiveTests`: only when touching providers or prompts. These are real calls on the owner's subscription, so keep inputs tiny.
 4. CI (`.github/workflows/ci.yml`) runs steps 1–2 on macOS for every PR and push to `main`; keep it green.
-5. `./install.sh`: rebuilds, installs to /Applications and relaunches. `build.sh` signs with the Developer ID Application certificate when installed (Accessibility then survives rebuilds) and falls back to ad-hoc (Accessibility must be re-granted after each rebuild).
+5. `./install.sh`: rebuilds, installs to /Applications and relaunches. `build.sh` signs with the Developer ID Application certificate when installed; `--install` falls back to an Apple Development certificate. Either keeps the Accessibility grant across rebuilds. Ad-hoc is the last resort, and Accessibility must then be re-granted after each rebuild.
 
 Releases: `scripts/make_dmg.sh` signs, notarizes (keychain profile `hone-notary`) and staples the DMG. Never run it, tag or publish a release unless asked: notarization uploads the build to Apple.
 
