@@ -8,8 +8,8 @@ final class AppState: ObservableObject {
     // Input
     @Published var draft = ""
     @Published var goal = ""
-    @Published var target: TargetModel { didSet { UserDefaults.standard.set(target.rawValue, forKey: "target") } }
-    @Published var depth: Depth { didSet { UserDefaults.standard.set(depth.rawValue, forKey: "depth") } }
+    @Published var target: TargetModel { didSet { defaults.set(target.rawValue, forKey: "target") } }
+    @Published var depth: Depth { didSet { defaults.set(depth.rawValue, forKey: "depth") } }
     @Published var techniques: Set<Technique> = []
     @Published var selectedActionID = AIAction.improvePrompt.id
 
@@ -27,28 +27,36 @@ final class AppState: ObservableObject {
     @Published var currentID: UUID?
 
     // Settings
-    @Published var providerSettings: ProviderSettings { didSet { providerSettings.save() } }
+    @Published var providerSettings: ProviderSettings { didSet { providerSettings.save(to: defaults) } }
     @Published var customActions: [AIAction] { didSet { saveJSON(customActions, "customActions") } }
     @Published var hiddenActionIDs: Set<String> { didSet { saveJSON(hiddenActionIDs, "hiddenActionIDs") } }
-    @Published var hotKey: HotKeyPreset { didSet { UserDefaults.standard.set(hotKey.rawValue, forKey: "hotKey"); applyHotKey() } }
+    @Published var hotKey: HotKeyPreset { didSet { defaults.set(hotKey.rawValue, forKey: "hotKey"); applyHotKey() } }
 
     let quickPanel = QuickPanelController()
     let serviceProvider = ServiceProvider()
     var openMainWindow: (() -> Void)?
 
-    private var conversation: [ChatMessage] = []
+    private(set) var conversation: [ChatMessage] = []
     private var task: Task<Void, Never>?
-    private var hotKeyRef: GlobalHotKey?
+    var hotKeyRef: GlobalHotKey?   // owned by the glue in AppState+System.swift
 
-    private init() {
-        let d = UserDefaults.standard
-        target = d.string(forKey: "target").flatMap(TargetModel.init(rawValue:)) ?? .claude
-        depth = d.string(forKey: "depth").flatMap(Depth.init(rawValue:)) ?? .standard
-        providerSettings = ProviderSettings.load()
-        customActions = Self.loadJSON("customActions") ?? []
-        hiddenActionIDs = Self.loadJSON("hiddenActionIDs") ?? []
-        hotKey = d.string(forKey: "hotKey").flatMap(HotKeyPreset.init(rawValue:)) ?? .ctrlOptSpace
-        history = HistoryStore.load()
+    let defaults: UserDefaults
+    let historyURL: URL
+    let makeProvider: (ProviderSettings) throws -> LLMProvider
+
+    /// Tests inject a scratch defaults suite, a temp history file and a fake provider.
+    init(defaults: UserDefaults = .standard, historyURL: URL = HistoryStore.url,
+         makeProvider: @escaping (ProviderSettings) throws -> LLMProvider = { try ProviderFactory.make($0) }) {
+        self.defaults = defaults
+        self.historyURL = historyURL
+        self.makeProvider = makeProvider
+        target = defaults.string(forKey: "target").flatMap(TargetModel.init(rawValue:)) ?? .claude
+        depth = defaults.string(forKey: "depth").flatMap(Depth.init(rawValue:)) ?? .standard
+        providerSettings = ProviderSettings.load(from: defaults)
+        customActions = Self.loadJSON("customActions", from: defaults) ?? []
+        hiddenActionIDs = Self.loadJSON("hiddenActionIDs", from: defaults) ?? []
+        hotKey = defaults.string(forKey: "hotKey").flatMap(HotKeyPreset.init(rawValue:)) ?? .ctrlOptSpace
+        history = HistoryStore.load(from: historyURL)
         quickPanel.state = self
     }
 
@@ -59,36 +67,6 @@ final class AppState: ObservableObject {
     var selectedAction: AIAction { allActions.first { $0.id == selectedActionID } ?? .improvePrompt }
     var promptOptions: PromptOptions { PromptOptions(target: target, depth: depth, techniques: techniques, goal: goal) }
     var output: String { ActionEngine.displayText(action: selectedAction, raw: raw) }
-
-    // MARK: Startup wiring
-
-    func startSystemIntegration() {
-        applyHotKey()
-        serviceProvider.onText = { [weak self] text, actionID in
-            Task { @MainActor in self?.quickPanel.present(text: text, canReplace: true, autoRun: actionID) }
-        }
-        NSApp.servicesProvider = serviceProvider
-        NSUpdateDynamicServices()
-    }
-
-    func applyHotKey() {
-        hotKeyRef = nil
-        guard hotKey != .off else { return }
-        hotKeyRef = GlobalHotKey(keyCode: hotKey.keyCode, modifiers: hotKey.modifiers) { [weak self] in
-            Task { @MainActor in await self?.quickPanel.presentFromSelection() }
-        }
-    }
-
-    func quickActionsOnClipboard() {
-        let text = NSPasteboard.general.string(forType: .string) ?? ""
-        quickPanel.present(text: text, canReplace: false, autoRun: nil)
-    }
-
-    func showMainWindow() {
-        NSApp.activate(ignoringOtherApps: true)
-        if let open = openMainWindow { open() }
-        else { NSApp.windows.first { $0.canBecomeMain }?.makeKeyAndOrderFront(nil) }
-    }
 
     // MARK: Main-window actions
 
@@ -158,22 +136,7 @@ final class AppState: ObservableObject {
     func delete(_ item: HistoryItem) {
         history.removeAll { $0.id == item.id }
         if currentID == item.id { currentID = nil }
-        HistoryStore.save(history)
-    }
-
-    func copy(_ text: String) {
-        guard !text.isEmpty else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
-        justCopied = true
-        Task { [weak self] in
-            try? await Task.sleep(for: .seconds(1.5))
-            self?.justCopied = false
-        }
-    }
-
-    func pasteDraft() {
-        if let s = NSPasteboard.general.string(forType: .string) { draft = s }
+        HistoryStore.save(history, to: historyURL)
     }
 
     func useOutputAsDraft() {
@@ -181,20 +144,6 @@ final class AppState: ObservableObject {
         guard !out.isEmpty else { return }
         clearOutput()
         draft = out
-    }
-
-    func testConnection() async -> String {
-        do {
-            let provider = try ProviderFactory.make(providerSettings)
-            var out = ""
-            for try await c in provider.stream(system: "Reply with the single word OK.",
-                                               messages: [ChatMessage(role: "user", content: "ping")], maxTokens: 10) {
-                out += c
-            }
-            return "✓ \(providerSettings.kind.shortLabel) replied: \(out.trimmingCharacters(in: .whitespacesAndNewlines).prefix(40))"
-        } catch {
-            return "✗ \(error.localizedDescription)"
-        }
     }
 
     // MARK: Custom actions
@@ -227,7 +176,7 @@ final class AppState: ObservableObject {
         history.removeAll { $0.id == item.id }
         history.insert(item, at: 0)
         if history.count > 300 { history = Array(history.prefix(300)) }
-        HistoryStore.save(history)
+        HistoryStore.save(history, to: historyURL)
         return item.id
     }
 
@@ -243,7 +192,7 @@ final class AppState: ObservableObject {
 
     private func execute(rollback: ([ChatMessage], String, ForgeResult?)?) {
         let provider: LLMProvider
-        do { provider = try ProviderFactory.make(providerSettings) } catch {
+        do { provider = try makeProvider(providerSettings) } catch {
             errorMessage = error.localizedDescription
             if let r = rollback { conversation = r.0 }
             return
@@ -289,11 +238,11 @@ final class AppState: ObservableObject {
     // MARK: Persistence helpers
 
     private func saveJSON<T: Encodable>(_ v: T, _ key: String) {
-        if let d = try? JSONEncoder().encode(v) { UserDefaults.standard.set(d, forKey: key) }
+        if let d = try? JSONEncoder().encode(v) { defaults.set(d, forKey: key) }
     }
 
-    private static func loadJSON<T: Decodable>(_ key: String) -> T? {
-        guard let d = UserDefaults.standard.data(forKey: key) else { return nil }
+    private static func loadJSON<T: Decodable>(_ key: String, from defaults: UserDefaults) -> T? {
+        guard let d = defaults.data(forKey: key) else { return nil }
         return try? JSONDecoder().decode(T.self, from: d)
     }
 }

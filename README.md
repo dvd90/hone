@@ -270,11 +270,12 @@ swift build                               # debug build
 scripts/make_dmg.sh                       # → build/Hone-<version>.dmg (signed + notarized when a Developer ID cert is installed)
 swift scripts/make_icon.swift && iconutil -c icns AppIcon.iconset   # regenerate the icon
 
-swift test                                # unit tests (parser, actions, CLI flattening, saved-data decoding, layout)
+swift test                                # unit tests (parser, actions, providers, app state, saved-data decoding)
+scripts/coverage.sh                       # unit tests + the 95% coverage gate that CI enforces
 PF_LIVE=1 swift test --filter LiveTests   # real calls via your claude + codex logins
 ```
 
-**CI:** GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) builds the app and runs the unit tests on a macOS runner for every pull request and every push to `main`. Docs-only changes skip it. Live tests never run in CI.
+**CI:** GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) builds the app and runs `scripts/coverage.sh` on a macOS runner for every pull request and every push to `main`: all unit tests must pass and logic code must keep at least 95% line coverage (SwiftUI views and OS glue are excluded by name in the script). Merging into `main` requires a pull request, this check passing, and 1 approval. Live tests never run in CI.
 
 **One-time signing setup** (needed for notarized releases)
 1. Xcode → Settings → Accounts → your team → **Manage Certificates… → + → Developer ID Application** (the Account Holder must create it). `build.sh` picks it up automatically.
@@ -334,8 +335,8 @@ Open an [issue](../../issues) with your macOS version, Hone version, provider, t
 
 ### Sending a pull request
 1. Fork the repo and create a branch from `main`.
-2. Build and test. `swift build` should finish with zero warnings, and `swift test` should pass. Add tests for new logic. `PF_LIVE=1 swift test --filter LiveTests` makes real calls on your own Claude Code and Codex logins, and is only needed when you change providers or prompts.
-3. Keep the pull request focused on one change, and say what you tested and on which macOS version. CI runs the build and unit tests on every pull request.
+2. Build and test. `swift build` should finish with zero warnings, and `scripts/coverage.sh` should pass: all tests green and at least 95% line coverage on logic code. Add tests for new logic. `PF_LIVE=1 swift test --filter LiveTests` makes real calls on your own Claude Code and Codex logins, and is only needed when you change providers or prompts.
+3. Keep the pull request focused on one change, and say what you tested and on which macOS version. CI runs the same build, tests and coverage gate; a pull request merges once that check passes and a maintainer approves it.
 
 By contributing, you agree that your contributions are licensed under the [MIT License](LICENSE).
 

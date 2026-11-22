@@ -247,9 +247,9 @@ enum HistoryStore {
         }
     }
 
-    static func save(_ items: [HistoryItem]) {
+    static func save(_ items: [HistoryItem], to file: URL = HistoryStore.url) {
         let enc = JSONEncoder()
         enc.dateEncodingStrategy = .iso8601
-        if let data = try? enc.encode(items) { try? data.write(to: url, options: .atomic) }
+        if let data = try? enc.encode(items) { try? data.write(to: file, options: .atomic) }
     }
 }

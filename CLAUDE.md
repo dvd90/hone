@@ -6,9 +6,9 @@ Formerly named Prompt Forge. The bundle ID, Swift module/target, Keychain servic
 
 ## Verify every change
 1. `swift build`: must finish with zero warnings.
-2. `swift test`: add tests for any new logic.
+2. `scripts/coverage.sh`: runs every unit test and fails below 95% line coverage on logic code. Views and OS glue are excluded by name in the script (`UI/Views.swift`, `UI/QuickPanel.swift`, `UI/SettingsView.swift`, `UI/Theme.swift`, `PromptForgeApp.swift`, `System/SystemIntegration.swift`, `Providers/Keychain.swift`, `AppState+System.swift`). New logic goes in a non-excluded file with tests; put pure helpers outside the excluded files so they count.
 3. `PF_LIVE=1 swift test --filter LiveTests`: only when touching providers or prompts. These are real calls on the owner's subscription, so keep inputs tiny.
-4. CI (`.github/workflows/ci.yml`) runs steps 1–2 on macOS for every PR and push to `main`; keep it green.
+4. CI (`.github/workflows/ci.yml`, check name "Build, tests and coverage") runs steps 1–2 on macOS. It is required to merge into `main`, along with a pull request and 1 approval; nobody pushes to `main` directly. Keep the job name in sync with the ruleset.
 5. `./install.sh`: rebuilds, installs to /Applications and relaunches. `build.sh` signs with the Developer ID Application certificate when installed (Accessibility then survives rebuilds) and falls back to ad-hoc (Accessibility must be re-granted after each rebuild).
 
 Releases: `scripts/make_dmg.sh` signs, notarizes (keychain profile `hone-notary`) and staples the DMG. Never run it, tag or publish a release unless asked: notarization uploads the build to Apple.
@@ -32,4 +32,5 @@ Releases: `scripts/make_dmg.sh` signs, notarizes (keychain profile `hone-notary`
 - Design: follow `DESIGN.md` (tokens and rules) and `PRODUCT.md` (users and principles).
 - UI: native controls first (default and `.borderedProminent` buttons, one prominent action per area; no glass or card containers in content). Reuse `UI/Theme.swift`: `field()` for text wells, `motion(_:)` for animations (honors Reduce Motion), `Theme.muted` for secondary text (system `.secondary` is below WCAG AA). The accent color lives in `Assets.xcassets` (compiled by `build.sh`).
 - Work on a feature branch and commit with clear messages. Do not push, tag or release unless asked.
+- Tests never touch the owner's real data: use `AppState(defaults:historyURL:makeProvider:)` with a scratch UserDefaults suite, a temp history file and a fake provider; pass `key:` stubs to `ProviderFactory.make`; give `CLIProvider` an `environment` with fake CLIs; give HTTP providers a stubbed `URLSession`.
 - Report briefly: what changed, what you actually tested, what is untested.
