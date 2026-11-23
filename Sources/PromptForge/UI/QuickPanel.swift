@@ -21,11 +21,14 @@ final class QuickPanelController: ObservableObject {
     @Published var copied = false
     /// Where the user came from ("App — Window title"), sent as Improve Prompt context; removable in the panel.
     @Published var source = ""
+    /// Obsidian notes for this text, found in the background after the panel opens; removable chips.
+    @Published var vaultNotes: [Attachment] = []
 
     weak var state: AppState?
     private var panel: KeyablePanel?
     private var previousApp: NSRunningApplication?
     private var task: Task<Void, Never>?
+    private var notesTask: Task<Void, Never>?
     private var sentMessage: ChatMessage?
 
     // MARK: Entry points
@@ -49,8 +52,20 @@ final class QuickPanelController: ObservableObject {
         self.source = source
         self.canReplace = canReplace && SelectionBridge.isTrusted
         output = ""; raw = ""; action = nil; phase = .choosing
+        findVaultNotes()
         showPanel()
         if let id = actionID, let a = state?.allActions.first(where: { $0.id == id }) { run(a) }
+    }
+
+    /// Looks up vault notes for this text in the background (again when the profile changes); chips appear when done.
+    func findVaultNotes() {
+        let text = sourceText, source = source
+        vaultNotes = []
+        notesTask?.cancel()
+        notesTask = Task { [weak self] in
+            guard let found = await self?.state?.relevantNotes(text: text, notes: "", source: source), !Task.isCancelled else { return }
+            self?.vaultNotes = found
+        }
     }
 
     // MARK: Actions
@@ -67,12 +82,17 @@ final class QuickPanelController: ObservableObject {
             phase = .failed(error.localizedDescription); return
         }
         phase = .running
-        let message = ActionEngine.firstMessage(action: a, text: text, options: state.panelOptions(source: source))
-        sentMessage = message
         let system = ActionEngine.system(for: a)
+        let pendingNotes = a.kind == .promptEngineer ? notesTask : nil
 
         task?.cancel()
         task = Task { [weak self] in
+            // Wait for the vault search so the note chips on screen are exactly what gets sent.
+            await pendingNotes?.value
+            guard !Task.isCancelled, let state = self?.state else { return }
+            let message = ActionEngine.firstMessage(action: a, text: text, options: state.panelOptions(
+                source: self?.source ?? "", vaultNotes: self?.vaultNotes ?? []))
+            self?.sentMessage = message
             var raw = ""
             do {
                 for try await chunk in provider.stream(system: system, messages: [message], maxTokens: 8000) {
@@ -235,14 +255,29 @@ struct QuickPanelView: View {
                     .disabled(c.sourceText.isEmpty)
                 }
             }
-            if !state.contextProfiles.isEmpty || !c.source.isEmpty { promptContextRow }
+            if !state.contextProfiles.isEmpty || !c.source.isEmpty || !c.vaultNotes.isEmpty { promptContextRow }
             Text("Press 1–9 or click · Esc to close")
                 .font(.caption2).foregroundStyle(Theme.muted)
         }
+        .onChange(of: state.contextProfileID) { c.findVaultNotes() }   // the new profile may [[link]] other notes
     }
 
-    /// What Improve Prompt will know: the selected profile and the app the user came from (removable).
+    /// What Improve Prompt will know: the selected profile, the app the user came from and vault notes (removable).
     private var promptContextRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            promptContextHeader
+            if !c.vaultNotes.isEmpty {
+                FlowLayout(spacing: 6) {
+                    ForEach(c.vaultNotes) { note in
+                        ContextChip(title: note.name, icon: "book.closed") { c.vaultNotes.removeAll { $0.id == note.id } }
+                    }
+                }
+            }
+        }
+        .padding(.top, 4)
+    }
+
+    private var promptContextHeader: some View {
         HStack(spacing: 8) {
             Text("Prompt context").font(.caption).foregroundStyle(Theme.muted)
             if !state.contextProfiles.isEmpty {
@@ -260,7 +295,6 @@ struct QuickPanelView: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.top, 4)
     }
 
     private var resultView: some View {

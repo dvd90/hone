@@ -442,6 +442,79 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(calls.last?.map(\.role), ["user", "assistant", "user"])
     }
 
+    // MARK: Obsidian
+
+    /// A temp vault folder named "Work", removed after the test.
+    private func vault(_ notes: [String: String]) throws -> URL {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("PF-vault-\(UUID().uuidString)/Work")
+        for (path, text) in notes {
+            let url = root.appendingPathComponent(path)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(text.utf8).write(to: url)
+        }
+        addTeardownBlock { try? FileManager.default.removeItem(at: root.deletingLastPathComponent()) }
+        return root
+    }
+
+    func testVaultSettingsPersist() {
+        let s = makeState()
+        XCTAssertEqual(s.obsidianVault, "")                 // off by default
+        XCTAssertEqual(s.obsidianMinScore, AppState.defaultMinScore)
+        s.obsidianVault = "/tmp/Work"; s.obsidianMinScore = 4
+        let reloaded = makeState()
+        XCTAssertEqual(reloaded.obsidianVault, "/tmp/Work")
+        XCTAssertEqual(reloaded.obsidianMinScore, 4)
+    }
+
+    func testVaultNotesFollowTheDraftReachTheModelAndStayOutOfHistory() async throws {
+        let root = try vault(["Hone.md": "Hone: SwiftUI app, XCTest tests, quick panel.", "Pasta.md": "Boil water.",
+                              "Roadmap.md": "Ship Obsidian context."])
+        let s = makeState()
+        s.draft = "Write XCTest tests for the Hone quick panel"
+        await s.refreshVaultNotes()
+        XCTAssertEqual(s.vaultNotes, [])                    // nothing until a vault is chosen
+        s.obsidianVault = root.path
+        var profile = s.addProfile(); profile.text = "Plans live in [[Roadmap]]."; s.updateProfile(profile)
+        s.sourceApp = "Obsidian — Pasta - Work - Obsidian v1.7.7"
+        await s.refreshVaultNotes()
+        XCTAssertEqual(s.vaultNotes.map(\.name), ["Pasta.md", "Roadmap.md", "Hone.md"])   // open, linked, matched
+
+        s.removeVaultNote(s.vaultNotes[0])
+        await s.refreshVaultNotes()
+        XCTAssertEqual(s.vaultNotes.map(\.name), ["Roadmap.md", "Hone.md"])               // removed stays out
+
+        replies = [.text(["<improved_prompt>\nX\n</improved_prompt>"])]
+        s.run()
+        await settle(s)
+        let sent = calls.first?.first?.content ?? ""
+        XCTAssertTrue(sent.contains("<obsidian_note name=\"Hone.md\">\nHone: SwiftUI app, XCTest tests, quick panel.\n</obsidian_note>"))
+        XCTAssertTrue(sent.contains("Ship Obsidian context."))
+        XCTAssertFalse(sent.contains("Boil water"))
+        XCTAssertEqual(s.conversation.first?.content, sent)    // the live run keeps the text for follow-ups
+        let saved = s.history.first?.conversation.first?.content ?? ""
+        XCTAssertTrue(saved.contains("<obsidian_note name=\"Roadmap.md\">\n(note text not kept in history)\n</obsidian_note>"))
+        XCTAssertFalse(saved.contains("Ship Obsidian context."))
+
+        s.reset()
+        XCTAssertEqual(s.vaultNotes, [])
+        s.sourceApp = "Obsidian — Pasta - Work - Obsidian v1.7.7"
+        await s.refreshVaultNotes()
+        XCTAssertEqual(s.vaultNotes.first?.name, "Pasta.md")  // reset forgets removals
+    }
+
+    func testPanelGetsOnlyItsOwnVaultNotes() async throws {
+        let root = try vault(["Hone.md": "Hone"])
+        let s = makeState()
+        s.obsidianVault = root.path
+        s.notes = "[[Hone]]"                                  // main-window notes don't reach panel runs
+        let none = await s.relevantNotes(text: "proofread this", notes: "", source: "")
+        XCTAssertEqual(none, [])
+        let linked = await s.relevantNotes(text: "see [[Hone]]", notes: "", source: "")
+        XCTAssertEqual(linked.map(\.name), ["Hone.md"])
+        XCTAssertEqual(s.panelOptions(source: "Mail", vaultNotes: linked).context.vaultNotes.map(\.name), ["Hone.md"])
+        XCTAssertTrue(s.panelOptions(source: "Mail").context.vaultNotes.isEmpty)
+    }
+
     func testCorrectionsReplaceAnswersWhenThereAreAssumptions() async {
         let reply = "<improved_prompt>\nAdd XCTest tests.\n</improved_prompt>\n<assumptions>\n- Tests use XCTest\n- Target is macOS 14\n</assumptions>"
         replies = [.text([reply]), .text([reply])]

@@ -211,7 +211,7 @@ struct InputPane: View {
 }
 
 extension InputPane {
-    /// Profile, per-run notes, attached files and the source app: what Improve Prompt knows about the situation.
+    /// Profile, per-run notes, attached files, vault notes and the source app: what Improve Prompt knows about the situation.
     var contextSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
@@ -239,7 +239,7 @@ extension InputPane {
                 .textFieldStyle(.roundedBorder)
                 .placeholder("Project, audience, constraints, examples…", when: state.notes.isEmpty)
                 .accessibilityHint("Facts about your situation for this run: project, audience, constraints, examples")
-            if !state.sourceApp.isEmpty || !state.attachments.isEmpty {
+            if !state.sourceApp.isEmpty || !state.attachments.isEmpty || !state.vaultNotes.isEmpty {
                 FlowLayout(spacing: 6) {
                     if !state.sourceApp.isEmpty {
                         ContextChip(title: state.sourceApp, icon: "macwindow") { state.sourceApp = "" }
@@ -247,8 +247,17 @@ extension InputPane {
                     ForEach(state.attachments) { file in
                         ContextChip(title: file.name, icon: "doc.text") { state.removeAttachment(file) }
                     }
+                    ForEach(state.vaultNotes) { note in
+                        ContextChip(title: note.name, icon: "book.closed") { state.removeVaultNote(note) }
+                    }
                 }
             }
+        }
+        // Vault notes follow the draft, debounced so typing doesn't rescan the vault on every key.
+        .task(id: [state.draft, state.notes, state.sourceApp, state.obsidianVault, "\(state.obsidianMinScore)",
+                   state.contextProfileID?.uuidString ?? ""]) {
+            try? await Task.sleep(for: .milliseconds(400))
+            if !Task.isCancelled { await state.refreshVaultNotes() }
         }
         .fileImporter(isPresented: $choosingFiles, allowedContentTypes: [.data], allowsMultipleSelection: true) { result in
             if case .success(let urls) = result { state.attach(urls) }
@@ -260,7 +269,7 @@ extension InputPane {
     }
 }
 
-/// A removable context item: a file or the app the user came from.
+/// A removable context item: a file, a vault note or the app the user came from.
 struct ContextChip: View {
     let title: String
     let icon: String
