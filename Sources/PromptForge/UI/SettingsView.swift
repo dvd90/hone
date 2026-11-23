@@ -312,8 +312,8 @@ struct ContextSettingsView: View {
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
         .background(Theme.ground)
-        .onAppear { refreshVaults() }
-        .onChange(of: state.obsidianVault) { refreshVaults() }
+        .onAppear { vaults = Obsidian.choices(current: state.obsidianVault) }
+        .onChange(of: state.obsidianVault) { vaults = Obsidian.choices(current: state.obsidianVault) }
         .fileImporter(isPresented: $choosingVault, allowedContentTypes: [.folder]) { result in
             if case .success(let url) = result { state.obsidianVault = url.path }
         }
@@ -326,12 +326,6 @@ struct ContextSettingsView: View {
                 editing = nil
             }
         }
-    }
-
-    /// Vaults Obsidian knows about, plus a folder chosen by hand.
-    private func refreshVaults() {
-        vaults = Obsidian.vaults().map(\.path)
-        if !state.obsidianVault.isEmpty, !vaults.contains(state.obsidianVault) { vaults.append(state.obsidianVault) }
     }
 }
 

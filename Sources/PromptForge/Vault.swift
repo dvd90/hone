@@ -57,14 +57,24 @@ enum Obsidian {
         }
     }
 
-    /// History keeps which notes a run used, not their text. Only the context block is touched: it comes before
-    /// the draft, and fencing guarantees a note body never contains its own closing tag.
+    /// History keeps which notes a run used, not their text. Only the context block of an Improve Prompt message
+    /// is touched (MetaPrompt puts it right after </techniques>, before the draft), and fencing guarantees a note
+    /// body never contains its own closing tag or </context>.
     static func redacted(_ message: ChatMessage) -> ChatMessage {
-        guard let end = message.content.range(of: "</context>") else { return message }
-        let context = message.content[..<end.lowerBound].replacingOccurrences(
+        guard message.role == "user", let start = message.content.range(of: "</techniques>\n\n<context>\n"),
+              let end = message.content.range(of: "\n</context>", range: start.upperBound..<message.content.endIndex)
+        else { return message }
+        let context = message.content[start.upperBound..<end.lowerBound].replacingOccurrences(
             of: #"(<obsidian_note name="[^"\n]*">\n)[\s\S]*?(\n</obsidian_note>)"#,
             with: "$1(note text not kept in history)$2", options: .regularExpression)
-        return ChatMessage(role: message.role, content: context + message.content[end.lowerBound...])
+        return ChatMessage(role: message.role,
+                           content: String(message.content[..<start.upperBound]) + context + message.content[end.lowerBound...])
+    }
+
+    /// The vaults to offer in Settings: Obsidian's, plus `current` when it was chosen by hand.
+    static func choices(current: String, registry: URL = registry) -> [String] {
+        let known = vaults(registry: registry).map(\.path)
+        return current.isEmpty || known.contains(current) ? known : known + [current]
     }
 }
 

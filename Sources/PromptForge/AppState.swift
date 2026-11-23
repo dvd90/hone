@@ -219,21 +219,23 @@ final class AppState: ObservableObject {
 
     /// Vault notes worth sending with this text: the note open in Obsidian (from `source`), notes linked with
     /// `[[Note]]` in the profile, run notes or text, then the best matches for the text and run notes.
-    func relevantNotes(text: String, notes runNotes: String, source: String) async -> [Attachment] {
+    /// Notes in `excluding` (removed by the user) are skipped before the note and size limits apply.
+    func relevantNotes(text: String, notes runNotes: String, source: String, excluding: Set<String> = []) async -> [Attachment] {
         guard !obsidianVault.isEmpty else { return [] }
         let root = URL(fileURLWithPath: obsidianVault, isDirectory: true)
         let index = vaultIndex.flatMap { $0.root == root ? $0 : nil } ?? VaultIndex(root: root)
         vaultIndex = index
         return await index.pick(open: Obsidian.openNote(source: source, vault: root.lastPathComponent),
                                 links: Obsidian.links(in: [selectedProfile?.text ?? "", runNotes, text].joined(separator: "\n")),
-                                query: text + "\n" + runNotes, minScore: obsidianMinScore)
+                                query: text + "\n" + runNotes, minScore: obsidianMinScore, excluding: excluding)
     }
 
     /// Recomputes the main window's vault notes; a superseded refresh (the draft changed meanwhile) is dropped.
+    /// Runs send exactly the chips on screen, so a note appears before it can be sent.
     func refreshVaultNotes() async {
-        let found = await relevantNotes(text: draft, notes: notes, source: sourceApp)
+        let found = await relevantNotes(text: draft, notes: notes, source: sourceApp, excluding: removedVaultNotes)
         guard !Task.isCancelled else { return }
-        vaultNotes = found.filter { !removedVaultNotes.contains($0.name) }
+        vaultNotes = found.filter { !removedVaultNotes.contains($0.name) }   // removed while the lookup ran
     }
 
     func removeVaultNote(_ note: Attachment) {

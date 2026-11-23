@@ -502,6 +502,18 @@ final class AppStateTests: XCTestCase {
         XCTAssertEqual(s.vaultNotes.first?.name, "Pasta.md")  // reset forgets removals
     }
 
+    func testRemovedNotesFreeTheirBudget() async throws {
+        let root = try vault(["Big.md": String(repeating: "x ", count: 20_000), "Hone.md": "Hone"])
+        let s = makeState()
+        s.obsidianVault = root.path
+        s.draft = "[[Big]] [[Hone]]"
+        await s.refreshVaultNotes()
+        XCTAssertEqual(s.vaultNotes.map(\.name), ["Big.md"])                // Big.md fills the 30 KB budget
+        s.removeVaultNote(s.vaultNotes[0])
+        await s.refreshVaultNotes()
+        XCTAssertEqual(s.vaultNotes.map(\.name), ["Hone.md"])               // removing it makes room
+    }
+
     func testPanelGetsOnlyItsOwnVaultNotes() async throws {
         let root = try vault(["Hone.md": "Hone"])
         let s = makeState()

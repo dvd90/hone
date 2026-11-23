@@ -29,6 +29,7 @@ final class QuickPanelController: ObservableObject {
     private var previousApp: NSRunningApplication?
     private var task: Task<Void, Never>?
     private var notesTask: Task<Void, Never>?
+    private var removedNotes: Set<String> = []
     private var sentMessage: ChatMessage?
 
     // MARK: Entry points
@@ -52,6 +53,7 @@ final class QuickPanelController: ObservableObject {
         self.source = source
         self.canReplace = canReplace && SelectionBridge.isTrusted
         output = ""; raw = ""; action = nil; phase = .choosing
+        removedNotes = []
         findVaultNotes()
         showPanel()
         if let id = actionID, let a = state?.allActions.first(where: { $0.id == id }) { run(a) }
@@ -59,13 +61,19 @@ final class QuickPanelController: ObservableObject {
 
     /// Looks up vault notes for this text in the background (again when the profile changes); chips appear when done.
     func findVaultNotes() {
-        let text = sourceText, source = source
+        let text = sourceText, source = source, removed = removedNotes
         vaultNotes = []
         notesTask?.cancel()
         notesTask = Task { [weak self] in
-            guard let found = await self?.state?.relevantNotes(text: text, notes: "", source: source), !Task.isCancelled else { return }
-            self?.vaultNotes = found
+            guard let found = await self?.state?.relevantNotes(text: text, notes: "", source: source, excluding: removed),
+                  !Task.isCancelled, let self else { return }
+            self.vaultNotes = found.filter { !self.removedNotes.contains($0.name) }
         }
+    }
+
+    func removeVaultNote(_ note: Attachment) {
+        removedNotes.insert(note.name)
+        vaultNotes.removeAll { $0.name == note.name }
     }
 
     // MARK: Actions
@@ -82,17 +90,14 @@ final class QuickPanelController: ObservableObject {
             phase = .failed(error.localizedDescription); return
         }
         phase = .running
+        // Exactly the note chips on screen: a lookup still running (or a Services auto-run) adds no notes,
+        // so nothing reaches the provider that the user didn't see.
+        let message = ActionEngine.firstMessage(action: a, text: text, options: state.panelOptions(source: source, vaultNotes: vaultNotes))
+        sentMessage = message
         let system = ActionEngine.system(for: a)
-        let pendingNotes = a.kind == .promptEngineer ? notesTask : nil
 
         task?.cancel()
         task = Task { [weak self] in
-            // Wait for the vault search so the note chips on screen are exactly what gets sent.
-            await pendingNotes?.value
-            guard !Task.isCancelled, let state = self?.state else { return }
-            let message = ActionEngine.firstMessage(action: a, text: text, options: state.panelOptions(
-                source: self?.source ?? "", vaultNotes: self?.vaultNotes ?? []))
-            self?.sentMessage = message
             var raw = ""
             do {
                 for try await chunk in provider.stream(system: system, messages: [message], maxTokens: 8000) {
@@ -269,7 +274,7 @@ struct QuickPanelView: View {
             if !c.vaultNotes.isEmpty {
                 FlowLayout(spacing: 6) {
                     ForEach(c.vaultNotes) { note in
-                        ContextChip(title: note.name, icon: "book.closed") { c.vaultNotes.removeAll { $0.id == note.id } }
+                        ContextChip(title: note.name, icon: "book.closed") { c.removeVaultNote(note) }
                     }
                 }
             }

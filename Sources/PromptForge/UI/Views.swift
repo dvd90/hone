@@ -255,7 +255,7 @@ extension InputPane {
         }
         // Vault notes follow the draft, debounced so typing doesn't rescan the vault on every key.
         .task(id: [state.draft, state.notes, state.sourceApp, state.obsidianVault, "\(state.obsidianMinScore)",
-                   state.contextProfileID?.uuidString ?? ""]) {
+                   state.selectedProfile?.text ?? ""]) {
             try? await Task.sleep(for: .milliseconds(400))
             if !Task.isCancelled { await state.refreshVaultNotes() }
         }

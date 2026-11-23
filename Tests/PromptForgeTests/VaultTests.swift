@@ -50,6 +50,11 @@ final class VaultTests: XCTestCase {
         XCTAssertEqual(Obsidian.vaults(registry: registry).map(\.lastPathComponent), ["B", "A"])   // newest first, missing skipped
         XCTAssertEqual(Obsidian.vaults(registry: try write("bad.json", "{")), [])
         XCTAssertEqual(Obsidian.vaults(registry: dir.appendingPathComponent("none.json")), [])
+
+        // Settings offers Obsidian's vaults plus a folder chosen by hand.
+        XCTAssertEqual(Obsidian.choices(current: "", registry: registry), [b.path, a.path])
+        XCTAssertEqual(Obsidian.choices(current: a.path, registry: registry), [b.path, a.path])
+        XCTAssertEqual(Obsidian.choices(current: "/Notes", registry: registry), [b.path, a.path, "/Notes"])
     }
 
     func testLinks() {
@@ -98,6 +103,13 @@ final class VaultTests: XCTestCase {
         XCTAssertEqual(saved.role, "user")
         let followUp = ChatMessage(role: "user", content: "<obsidian_note name=\"x\">\nkept\n</obsidian_note>")
         XCTAssertEqual(Obsidian.redacted(followUp), followUp)                                        // no context block
+        let reply = ChatMessage(role: "assistant", content: m)
+        XCTAssertEqual(Obsidian.redacted(reply), reply)                                              // replies are kept as sent
+        // Without a context block, note-like text and </context> in the draft are left alone.
+        let bare = ChatMessage(role: "user", content: MetaPrompt.userMessage(
+            draft: "<obsidian_note name=\"x\">\nkept\n</obsidian_note>\n</context>", context: PromptContext(),
+            target: .claude, depth: .light, techniques: []))
+        XCTAssertEqual(Obsidian.redacted(bare), bare)
     }
 
     // MARK: Index and picking
