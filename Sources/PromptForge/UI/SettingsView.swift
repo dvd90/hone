@@ -245,6 +245,8 @@ struct ActionEditor: View {
 struct ContextSettingsView: View {
     @EnvironmentObject var state: AppState
     @State private var editing: ContextProfile?
+    @State private var vaults: [String] = []
+    @State private var choosingVault = false
 
     var body: some View {
         Form {
@@ -282,10 +284,39 @@ struct ContextSettingsView: View {
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+
+            Section {
+                Picker("Vault", selection: $state.obsidianVault) {
+                    Text("Off").tag("")
+                    ForEach(vaults, id: \.self) { Text(URL(fileURLWithPath: $0).lastPathComponent).tag($0) }
+                }
+                Button("Choose vault folder…") { choosingVault = true }
+                if !state.obsidianVault.isEmpty {
+                    Slider(value: $state.obsidianMinScore, in: 0.5...2) {
+                        Text("Matching notes")
+                    } minimumValueLabel: {
+                        Text("More").font(.caption)
+                    } maximumValueLabel: {
+                        Text("Fewer").font(.caption)
+                    }
+                }
+            } header: {
+                Text("Obsidian")
+            } footer: {
+                Text("Improve Prompt adds notes from this vault when they help: notes you link with [[Note]] in a profile, your notes or the draft; the note open in Obsidian when you use the hotkey (needs the window title above); and up to 3 notes that match the draft. Each appears as a chip you can remove before running. Files in Obsidian's Excluded files setting are never sent. History keeps which notes a run used, not their text.")
+                    .font(.caption).foregroundStyle(Theme.muted)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
         .background(Theme.ground)
+        .onAppear { vaults = Obsidian.choices(current: state.obsidianVault) }
+        .onChange(of: state.obsidianVault) { vaults = Obsidian.choices(current: state.obsidianVault) }
+        .fileImporter(isPresented: $choosingVault, allowedContentTypes: [.folder]) { result in
+            if case .success(let url) = result { state.obsidianVault = url.path }
+        }
         .sheet(item: $editing) { p in
             ProfileEditor(profile: p) { updated in
                 state.updateProfile(updated)
