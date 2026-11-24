@@ -64,6 +64,8 @@ struct PromptContext: Equatable {
     /// The app and window the author came from (hotkey only), e.g. "Xcode — AppState.swift".
     var source = ""
     var files: [Attachment] = []
+    /// Notes from the Obsidian vault picked for this run (Vault.swift); names are paths inside the vault.
+    var vaultNotes: [Attachment] = []
 }
 
 enum SourceContext {

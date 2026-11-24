@@ -10,6 +10,8 @@ final class AppState: ObservableObject {
     /// Per-run context for Improve Prompt (stored in HistoryItem.goal).
     @Published var notes = ""
     @Published var attachments: [Attachment] = []
+    /// Obsidian notes for the next main-window run, refreshed as the draft changes; shown as removable chips.
+    @Published var vaultNotes: [Attachment] = []
     /// The app and window an "Open in App" run came from; empty for runs started in the main window.
     @Published var sourceApp = ""
     @Published var target: TargetModel { didSet { defaults.set(target.rawValue, forKey: "target") } }
@@ -40,6 +42,11 @@ final class AppState: ObservableObject {
     @Published var contextProfileID: UUID? { didSet { defaults.set(contextProfileID?.uuidString, forKey: "contextProfileID") } }
     /// Whether the hotkey adds the app and window title the user came from.
     @Published var includeSourceApp: Bool { didSet { defaults.set(includeSourceApp, forKey: "includeSourceApp") } }
+    /// The Obsidian vault folder Improve Prompt may take notes from; empty = off.
+    @Published var obsidianVault: String { didSet { defaults.set(obsidianVault, forKey: "obsidianVault") } }
+    /// Share of the draft's distinctive words an unlinked note must cover (a title match adds a bonus); lower adds more notes.
+    @Published var obsidianMinScore: Double { didSet { defaults.set(obsidianMinScore, forKey: "obsidianMinScore") } }
+    static let defaultMinScore = 1.0
 
     let quickPanel = QuickPanelController()
     let serviceProvider = ServiceProvider()
@@ -47,6 +54,9 @@ final class AppState: ObservableObject {
 
     private(set) var conversation: [ChatMessage] = []
     private var task: Task<Void, Never>?
+    private var vaultIndex: VaultIndex?
+    /// Vault notes the user removed from this draft; they stay out until the draft is reset.
+    private var removedVaultNotes: Set<String> = []
     var hotKeyRef: GlobalHotKey?   // owned by the glue in AppState+System.swift
 
     let defaults: UserDefaults
@@ -68,6 +78,8 @@ final class AppState: ObservableObject {
         contextProfiles = Self.loadJSON("contextProfiles.v1", from: defaults) ?? []
         contextProfileID = defaults.string(forKey: "contextProfileID").flatMap(UUID.init(uuidString:))
         includeSourceApp = defaults.object(forKey: "includeSourceApp") as? Bool ?? true
+        obsidianVault = defaults.string(forKey: "obsidianVault") ?? ""
+        obsidianMinScore = defaults.object(forKey: "obsidianMinScore") as? Double ?? Self.defaultMinScore
         history = HistoryStore.load(from: historyURL)
         quickPanel.state = self
     }
@@ -79,16 +91,18 @@ final class AppState: ObservableObject {
     var selectedAction: AIAction { allActions.first { $0.id == selectedActionID } ?? .improvePrompt }
     var selectedProfile: ContextProfile? { contextProfiles.first { $0.id == contextProfileID } }
 
-    /// Main-window runs: profile, notes, attached files, and the source app when the run came from the panel.
+    /// Main-window runs: profile, notes, attached files, vault notes, and the source app when the run came from the panel.
     var promptOptions: PromptOptions {
         PromptOptions(target: target, depth: depth, techniques: techniques,
-                      context: PromptContext(profile: selectedProfile, notes: notes, source: sourceApp, files: attachments))
+                      context: PromptContext(profile: selectedProfile, notes: notes, source: sourceApp, files: attachments,
+                                             vaultNotes: vaultNotes))
     }
 
-    /// Quick-panel runs: only the profile and where the user came from, never the main window's notes or files.
-    func panelOptions(source: String) -> PromptOptions {
+    /// Quick-panel runs: the profile, where the user came from and the panel's own vault notes,
+    /// never the main window's notes or files.
+    func panelOptions(source: String, vaultNotes panelNotes: [Attachment] = []) -> PromptOptions {
         PromptOptions(target: target, depth: depth, techniques: techniques,
-                      context: PromptContext(profile: selectedProfile, source: source))
+                      context: PromptContext(profile: selectedProfile, source: source, vaultNotes: panelNotes))
     }
     var output: String { ActionEngine.displayText(action: selectedAction, raw: raw) }
 
@@ -140,14 +154,14 @@ final class AppState: ObservableObject {
 
     func reset() {
         clearOutput()
-        draft = ""; notes = ""; attachments = []; sourceApp = ""
+        draft = ""; notes = ""; attachments = []; sourceApp = ""; clearVaultNotes()
     }
 
     func open(_ item: HistoryItem) {
         cancel()
         selectedActionID = allActions.contains { $0.id == item.actionID } ? item.actionID : AIAction.improvePrompt.id
         draft = item.draft; notes = item.goal; target = item.target
-        attachments = []; sourceApp = ""
+        attachments = []; sourceApp = ""; clearVaultNotes()
         raw = item.raw; result = item.result
         // Older quick-panel items saved [user, assistant]; follow-ups append the reply themselves.
         conversation = item.conversation.last?.role == "assistant" ? Array(item.conversation.dropLast()) : item.conversation
@@ -159,7 +173,7 @@ final class AppState: ObservableObject {
         cancel()
         selectedActionID = action.id
         draft = text
-        notes = ""; attachments = []; sourceApp = source
+        notes = ""; attachments = []; sourceApp = source; clearVaultNotes()
         raw = r
         result = action.kind == .promptEngineer ? ForgeResult.parse(r) : nil
         conversation = [message]
@@ -201,6 +215,36 @@ final class AppState: ObservableObject {
 
     func removeAttachment(_ file: Attachment) {
         attachments.removeAll { $0.id == file.id }
+    }
+
+    /// Vault notes worth sending with this text: the note open in Obsidian (from `source`), notes linked with
+    /// `[[Note]]` in the profile, run notes or text, then the best matches for the text and run notes.
+    /// Notes in `excluding` (removed by the user) are skipped before the note and size limits apply.
+    func relevantNotes(text: String, notes runNotes: String, source: String, excluding: Set<String> = []) async -> [Attachment] {
+        guard !obsidianVault.isEmpty else { return [] }
+        let root = URL(fileURLWithPath: obsidianVault, isDirectory: true)
+        let index = vaultIndex.flatMap { $0.root == root ? $0 : nil } ?? VaultIndex(root: root)
+        vaultIndex = index
+        return await index.pick(open: Obsidian.openNote(source: source, vault: root.lastPathComponent),
+                                links: Obsidian.links(in: [selectedProfile?.text ?? "", runNotes, text].joined(separator: "\n")),
+                                query: text + "\n" + runNotes, minScore: obsidianMinScore, excluding: excluding)
+    }
+
+    /// Recomputes the main window's vault notes; a superseded refresh (the draft changed meanwhile) is dropped.
+    /// Runs send exactly the chips on screen, so a note appears before it can be sent.
+    func refreshVaultNotes() async {
+        let found = await relevantNotes(text: draft, notes: notes, source: sourceApp, excluding: removedVaultNotes)
+        guard !Task.isCancelled else { return }
+        vaultNotes = found.filter { !removedVaultNotes.contains($0.name) }   // removed while the lookup ran
+    }
+
+    func removeVaultNote(_ note: Attachment) {
+        removedVaultNotes.insert(note.name)
+        vaultNotes.removeAll { $0.name == note.name }
+    }
+
+    private func clearVaultNotes() {
+        vaultNotes = []; removedVaultNotes = []
     }
 
     func addProfile() -> ContextProfile {
@@ -247,7 +291,7 @@ final class AppState: ObservableObject {
         let kept = action.kind == .promptEngineer ? (runNotes ?? notes) : ""
         let item = HistoryItem(id: id ?? UUID(), date: Date(), actionID: action.id, actionName: action.name,
                                draft: text, goal: kept, target: target,
-                               provider: providerSettings.kind.shortLabel, raw: r, conversation: conv)
+                               provider: providerSettings.kind.shortLabel, raw: r, conversation: conv.map(Obsidian.redacted))
         history.removeAll { $0.id == item.id }
         history.insert(item, at: 0)
         if history.count > 300 { history = Array(history.prefix(300)) }
