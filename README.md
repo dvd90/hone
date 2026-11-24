@@ -1,6 +1,6 @@
 # Hone ✨
 
-[![CI](https://github.com/dvd90/prompt-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/dvd90/prompt-forge/actions/workflows/ci.yml)
+[![CI](https://github.com/dvd90/hone/actions/workflows/ci.yml/badge.svg)](https://github.com/dvd90/hone/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **A native macOS app that turns rough prompts into great ones and runs AI text actions on any text you select, using the AI subscription you already pay for.**
@@ -15,7 +15,7 @@
 
 [Watch the 34-second demo](docs/demo.mp4) (no sound).
 
-Hone is open source under the [MIT License](LICENSE) at [github.com/dvd90/prompt-forge](https://github.com/dvd90/prompt-forge), and improvements are welcome: bug reports, ideas, new actions, new providers, tests and fixes. See [Contributing](#contributing).
+Hone is open source under the [MIT License](LICENSE) at [github.com/dvd90/hone](https://github.com/dvd90/hone), and improvements are welcome: bug reports, ideas, new actions, new providers, tests and fixes. See [Contributing](#contributing).
 
 ---
 
@@ -55,8 +55,8 @@ The current release, 1.0.0, is `PromptForge-1.0.0.dmg`. It predates the Hone nam
 ### Option B: build from source
 Requires Xcode or the Xcode Command Line Tools (Swift 5.10+). Full Xcode also compiles the accent-color asset; with only the Command Line Tools the app uses your system accent color.
 ```bash
-git clone https://github.com/dvd90/prompt-forge.git
-cd prompt-forge
+git clone https://github.com/dvd90/hone.git
+cd hone
 ./install.sh                        # builds, installs to /Applications, launches
 ```
 
