@@ -1,9 +1,11 @@
 # Hone ✨
 
-[![CI](https://github.com/dvd90/prompt-forge/actions/workflows/ci.yml/badge.svg)](https://github.com/dvd90/prompt-forge/actions/workflows/ci.yml)
+[![CI](https://github.com/dvd90/hone/actions/workflows/ci.yml/badge.svg)](https://github.com/dvd90/hone/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **A native macOS app that turns rough prompts into great ones and runs AI text actions on any text you select, using the AI subscription you already pay for.**
+
+[![Hone demo: select text, press Ctrl + Option + Space, improve the prompt](docs/demo.gif)](docs/demo.mp4)
 
 - 🪄 **Improve Prompt**: rewrites your prompt with proven prompt-engineering techniques, grounded in your context (a saved profile, notes, attached files, the app you were in). It scores the prompt before and after, explains what was wrong, and lists the assumptions it made so you can correct them.
 - ✍️ **Text actions**: Rewrite, Proofread, Make Concise, Professional, Friendly, Summarize, Explain, Translate, Draft Reply, plus **your own custom actions**.
@@ -11,11 +13,7 @@
 - 🔌 **Bring your own AI**: Claude, ChatGPT or Gemini **subscriptions** through their official CLIs, or an Anthropic / OpenAI-compatible **API key** (OpenAI, OpenRouter, Ollama, LM Studio…).
 - 🔒 **Private by design**: no backend, no telemetry. Keys live in the macOS Keychain, and text goes only to the provider you choose.
 
-[![Hone demo: select text, press Ctrl + Option + Space, improve the prompt](docs/demo-poster.png)](docs/demo.mp4)
-
-[Watch the 34-second demo](docs/demo.mp4) (no sound).
-
-Hone is open source under the [MIT License](LICENSE) at [github.com/dvd90/prompt-forge](https://github.com/dvd90/prompt-forge), and improvements are welcome: bug reports, ideas, new actions, new providers, tests and fixes. See [Contributing](#contributing).
+Hone is open source under the [MIT License](LICENSE) at [github.com/dvd90/hone](https://github.com/dvd90/hone), and improvements are welcome: bug reports, ideas, new actions, new providers, tests and fixes. See [Contributing](#contributing).
 
 ---
 
@@ -55,8 +53,8 @@ The current release, 1.0.0, is `PromptForge-1.0.0.dmg`. It predates the Hone nam
 ### Option B: build from source
 Requires Xcode or the Xcode Command Line Tools (Swift 5.10+). Full Xcode also compiles the accent-color asset; with only the Command Line Tools the app uses your system accent color.
 ```bash
-git clone https://github.com/dvd90/prompt-forge.git
-cd prompt-forge
+git clone https://github.com/dvd90/hone.git
+cd hone
 ./install.sh                        # builds, installs to /Applications, launches
 ```
 
