@@ -5,15 +5,13 @@
 
 **A native macOS app that turns rough prompts into great ones and runs AI text actions on any text you select, using the AI subscription you already pay for.**
 
+[![Hone demo: select text, press Ctrl + Option + Space, improve the prompt](docs/demo.gif)](docs/demo.mp4)
+
 - 🪄 **Improve Prompt**: rewrites your prompt with proven prompt-engineering techniques, grounded in your context (a saved profile, notes, attached files, the app you were in, notes from your Obsidian vault). It scores the prompt before and after, explains what was wrong, and lists the assumptions it made so you can correct them.
 - ✍️ **Text actions**: Rewrite, Proofread, Make Concise, Professional, Friendly, Summarize, Explain, Translate, Draft Reply, plus **your own custom actions**.
 - ⌨️ **Works everywhere**: select text in any app, press **⌃⌥Space**, pick an action, then **Replace** it in place or **Copy** it.
 - 🔌 **Bring your own AI**: Claude, ChatGPT or Gemini **subscriptions** through their official CLIs, or an Anthropic / OpenAI-compatible **API key** (OpenAI, OpenRouter, Ollama, LM Studio…).
 - 🔒 **Private by design**: no backend, no telemetry. Keys live in the macOS Keychain, and text goes only to the provider you choose.
-
-[![Hone demo: select text, press Ctrl + Option + Space, improve the prompt](docs/demo-poster.png)](docs/demo.mp4)
-
-[Watch the 34-second demo](docs/demo.mp4) (no sound).
 
 Hone is open source under the [MIT License](LICENSE) at [github.com/dvd90/hone](https://github.com/dvd90/hone), and improvements are welcome: bug reports, ideas, new actions, new providers, tests and fixes. See [Contributing](#contributing).
 
